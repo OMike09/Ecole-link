@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ÉCOLE LINK — Portail (école & plateforme) 🟠</title>
+<title>ÉCOLE LINK — Portail PDG 🟠</title>
+<link rel="manifest" href="/manifest-admin.json">
 <link rel="icon" type="image/png" href="/ecole-link-icon-192.png">
+<link rel="apple-touch-icon" href="/ecole-link-icon-192.png">
+<meta name="theme-color" content="#D96C00">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root{--o:#E8820C;--od:#C96A00;--ob:#FFF3E4;--ok:#0D7A4D;--danger:#D64545;--ink:#211E19;--muted:#85806F;--line:#EDE3D3;--card:#FFFDF9;--card2:#FAF4E9;--bg:#FFFBF4;--r:18px;--shadow:0 2px 14px rgba(150,90,10,.10)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -88,6 +92,7 @@ label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bot
 <div id="board" class="hidden">
   <div class="row" style="margin-bottom:12px">
     <h1 id="hello" style="font-size:19px;flex:1"></h1>
+    <button class="btn-line" id="btn-pwd" onclick="changePwd()">🔑 Mot de passe</button>
     <button class="btn-line" onclick="logout()">⏻ Sortir</button>
   </div>
 
@@ -206,6 +211,18 @@ label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bot
       <div id="boss-staff" style="margin-top:10px"></div>
     </div>
   </div>
+  <div class="panel card hidden" id="p-boss-cfg">
+    <h3>⚙️ Tarif famille (PDG) <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <p class="note" style="margin-bottom:10px">Mettez <b>0 F</b> pour rendre l'app <b>gratuite</b> pour toutes les familles. Un prix &gt; 0 = payant (Wave / OM / MTN). L'essai s'applique uniquement en mode payant.</p>
+      <div class="grid2" style="margin-bottom:10px">
+        <div><label>💰 Prix annuel par famille (F) — 0 = gratuit</label><input id="cfg-price" type="number" min="0" max="500000" step="500"></div>
+        <div><label>🎁 Jours d'essai (0 à 365)</label><input id="cfg-trial" type="number" min="0" max="365" step="1"></div>
+      </div>
+      <button class="btn-main" onclick="saveTarif()">💾 Enregistrer le tarif</button>
+      <p class="note" id="cfg-hint" style="margin-top:8px"></p>
+    </div>
+  </div>
   <div class="panel card hidden" id="p-boss-pay">
     <h3>💳 Abonnements à valider <span class="fold-ic">▾</span></h3>
     <div class="body"><div id="boss-pay"></div></div>
@@ -286,7 +303,7 @@ function enter(){
   $('#gate').classList.add('hidden'); $('#board').classList.remove('hidden');
   $('#net-dot').classList.add('on');
   const staffPanels=['p-stats','p-point','p-ann','p-classes','p-abs','p-stats7'];
-  const bossPanels=['p-boss-schools','p-boss-staff','p-boss-pay','p-boss-stats','p-boss-audit'];
+  const bossPanels=['p-boss-schools','p-boss-staff','p-boss-cfg','p-boss-pay','p-boss-stats','p-boss-audit'];
   staffPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='staff'));
   bossPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='boss'));
   if(who.role==='staff'){ $('#hello').textContent='🏫 '+who.school+' — '+who.nom+' ('+who.srole+')'; staffBoot(); }
@@ -409,7 +426,8 @@ async function loadAnnouncements(){
     const c=a.cat==='urgent'?'<span class="status st-cancel">🚨 URGENT</span>':a.cat==='reunion'?'<span class="status st-blue">📅 CONVOCATION</span>':'<span class="status st-info">ℹ️ INFO</span>';
     return `<div class="trow" style="align-items:flex-start">
       <span style="flex:1">${c} <b>${a.title}</b><br><span class="note">${(a.body||'').slice(0,110)}${a.reunionAt?' · 🕐 '+a.reunionAt:''}</span></span>
-      <span style="flex:none;text-align:right;font-size:11px" class="note">📨 ${a.stats.cible}<br>👁️ ${a.stats.reads} vues<br>✅ ${a.stats.oui} · ❌ ${a.stats.non}</span>
+      <span style="flex:none;text-align:right;font-size:11px" class="note">📨 ${a.stats.cible}<br>👁️ ${a.stats.reads} vus<br>📩 ${a.stats.acks||0} reçus<br>✅ ${a.stats.oui} · ❌ ${a.stats.non}</span>
+      <button class="btn-ghost" onclick="showReceipts('${a.id}')">👥 Qui a vu</button>
     </div>`;
   }).join(''):'<p class="empty">Aucune annonce envoyée.</p>';
 }
@@ -438,6 +456,10 @@ async function bossBoot(){ await loadBossState(); }
 async function loadBossState(){
   const r=await fetch('/api/admin/state'); if(!r.ok) return toast('⏳ Connexion expirée — relancez');
   const d=await r.json();
+  const pr = d.price!=null?d.price:3000;
+  $('#cfg-price').value = pr;
+  $('#cfg-trial').value = d.trialDays!=null?d.trialDays:30;
+  $('#cfg-hint').textContent = d.free ? 'Mode actuel : GRATUIT — les familles n\'ont rien à payer.' : ('Mode actuel : PAYANT — '+pr.toLocaleString('fr-FR')+' F/an, essai '+d.trialDays+' j.');
   $('#boss-kpis').innerHTML=
     `<div class="kpi"><b>${d.schools.length}</b><span>🏫 écoles</span></div>
      <div class="kpi"><b>${d.students}</b><span>🧒 élèves</span></div>
@@ -474,6 +496,36 @@ async function createStaff(){
   alert('🤝 ACCÈS CRÉÉ — remettez en main propre :\n\n    École : '+d.school+'\n    Nom : '+d.nom+'\n    Téléphone : '+d.tel+'\n    Mot de passe : '+d.password+(d.passwordGenere?' (généré)':'')+'\n\nIl se connecte dans le portail → onglet « Je suis de l\'école ».');
   $('#bst-nom').value=''; $('#bst-tel').value=''; loadBossState();
 }
+async function saveTarif(){
+  const price=parseFloat($('#cfg-price').value), trialDays=parseInt($('#cfg-trial').value,10);
+  if(isNaN(price)||price<0) return toast('❌ Prix invalide (0 = gratuit)');
+  const r=await fetch('/api/admin/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({price,trialDays})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  toast(d.free?'🎁 App GRATUITE pour toutes les familles':'💰 Tarif '+d.price.toLocaleString('fr-FR')+' F/an — essai '+d.trialDays+' j');
+  loadBossState();
+}
+async function changePwd(){
+  const cur=prompt('🔑 Mot de passe actuel :'); if(cur===null) return;
+  const n1=prompt('🆕 Nouveau mot de passe (8+, lettre + chiffre) :'); if(!n1) return;
+  const n2=prompt('✅ Confirmez :'); if(n1!==n2) return toast('❌ Les deux saisies ne correspondent pas');
+  const r=await fetch('/api/admin/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current:cur,next:n1})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'échec'));
+  toast('✓ Mot de passe modifié — reconnectez-vous'); setTimeout(logout, 800);
+}
+/* PWA PDG — comme KLEAN : icône écran d'accueil */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredPrompt=e; showInstallFab(); });
+function showInstallFab(){
+  if(document.getElementById('ins-fab')) return;
+  const b=document.createElement('button');
+  b.id='ins-fab'; b.textContent='📲 Installer l\'app PDG';
+  b.style.cssText='position:fixed;right:14px;bottom:18px;z-index:80;background:linear-gradient(135deg,#E8820C,#C96A00);color:#fff;font-weight:900;font-size:13px;padding:12px 16px;border-radius:99px;box-shadow:0 6px 18px rgba(217,108,0,.35);font-family:inherit;border:none;cursor:pointer';
+  b.onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); const r=await deferredPrompt.userChoice; if(r.outcome==='accepted') b.remove(); deferredPrompt=null; };
+  document.body.appendChild(b);
+}
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 async function payAct(id, act){
   const ok=confirm(act==='validate'?'✅ Valider et ouvrir 1 an d\'abonnement pour cette famille ?':'✗ Rejeter cette preuve ?');
   if(!ok) return;

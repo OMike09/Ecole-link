@@ -1,0 +1,259 @@
+{
+  "note": "Annuaire collèges & lycées reconnus (publics + privés connus) par ville — Côte d'Ivoire. Les établissements s'ajoutent au fil des activations plateforme.",
+  "villes": [
+    {"nom":"Abidjan — Cocody","ecoles":[
+      {"nom":"Lycée classique d'Abidjan","type":"lycee","statut":"public"},
+      {"nom":"Lycée de Cocody","type":"lycee","statut":"public"},
+      {"nom":"Lycée technique de Cocody","type":"lycee","statut":"public"},
+      {"nom":"Lycée Aimé Césaire","type":"lycee","statut":"public"},
+      {"nom":"Collège d'orientation de Cocody","type":"college","statut":"public"},
+      {"nom":"Cours secondaire méthodiste de Cocody","type":"college","statut":"prive"},
+      {"nom":"Collège Notre-Dame d'Afrique","type":"college","statut":"prive"},
+      {"nom":"Lycée Blaise-Pascal","type":"lycee","statut":"prive"},
+      {"nom":"Cours Sainte-Marie de Cocody","type":"college","statut":"prive"},
+      {"nom":"Groupe scolaire Tanon Namanko","type":"lycee","statut":"prive"}
+    ]},
+    {"nom":"Abidjan — Yopougon","ecoles":[
+      {"nom":"Lycée municipal Simone Ehivet Gbagbo de Niangon","type":"lycee","statut":"public"},
+      {"nom":"Lycée technique de Yopougon","type":"lycee","statut":"public"},
+      {"nom":"Lycée professionnel commercial de Yopougon","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Yopougon","type":"college","statut":"public"},
+      {"nom":"Collège Newton de Yopougon","type":"college","statut":"public"},
+      {"nom":"Cours secondaire méthodiste de Yopougon","type":"college","statut":"prive"},
+      {"nom":"Lycée moderne Le Mahou","type":"lycee","statut":"public"}
+    ]},
+    {"nom":"Abidjan — Abobo","ecoles":[
+      {"nom":"Lycée moderne 1 d'Abobo","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne 2 d'Abobo","type":"lycee","statut":"public"},
+      {"nom":"Lycée municipal d'Abobo","type":"lycee","statut":"public"},
+      {"nom":"Collège Anador d'Abobo","type":"college","statut":"public"},
+      {"nom":"Collège moderne d'Abobo","type":"college","statut":"public"}
+    ]},
+    {"nom":"Abidjan — Adjamé","ecoles":[
+      {"nom":"Lycée municipal d'Adjamé","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne d'Adjamé 220 logements","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne Adjamé Harris","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Adjamé","type":"college","statut":"public"}
+    ]},
+    {"nom":"Abidjan — Plateau","ecoles":[
+      {"nom":"Collège du Plateau","type":"college","statut":"public"},
+      {"nom":"Cours secondaire méthodiste du Plateau","type":"college","statut":"prive"},
+      {"nom":"Collège Jean-Mermoz","type":"college","statut":"prive"}
+    ]},
+    {"nom":"Abidjan — Marcory","ecoles":[
+      {"nom":"Lycée moderne Amagou Victor de Marcory","type":"lycee","statut":"public"},
+      {"nom":"Lycée municipal de Marcory","type":"lycee","statut":"public"},
+      {"nom":"Collège Victor Schoelcher","type":"college","statut":"public"},
+      {"nom":"Lycée Notre-Dame d'Afrique de Biétry","type":"lycee","statut":"prive"}
+    ]},
+    {"nom":"Abidjan — Koumassi","ecoles":[
+      {"nom":"Lycée municipal de Koumassi","type":"lycee","statut":"public"},
+      {"nom":"Collège BAD de Koumassi","type":"college","statut":"public"},
+      {"nom":"Lycée Sainte-Thérèse de Koumassi","type":"lycee","statut":"prive"}
+    ]},
+    {"nom":"Abidjan — Treichville","ecoles":[
+      {"nom":"Lycée moderne de Treichville","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Treichville","type":"college","statut":"public"}
+    ]},
+    {"nom":"Abidjan — Port-Bouët","ecoles":[
+      {"nom":"Lycée moderne de Port-Bouët","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Port-Bouët","type":"college","statut":"public"}
+    ]},
+    {"nom":"Abidjan — Attécoubé","ecoles":[
+      {"nom":"Lycée municipal d'Attécoubé","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Attécoubé","type":"college","statut":"public"}
+    ]},
+    {"nom":"Bingerville","ecoles":[
+      {"nom":"Lycée municipal de Bingerville","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Bingerville","type":"college","statut":"public"},
+      {"nom":"Collège William Ponty","type":"college","statut":"public"}
+    ]},
+    {"nom":"Anyama","ecoles":[
+      {"nom":"Lycée moderne Alassane Ouattara d'Anyama","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Anyama","type":"college","statut":"public"}
+    ]},
+    {"nom":"Grand-Bassam","ecoles":[
+      {"nom":"Lycée d'Excellence Alassane Ouattara de Grand-Bassam","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne de Grand-Bassam","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Grand-Bassam","type":"college","statut":"public"}
+    ]},
+    {"nom":"Bouaké","ecoles":[
+      {"nom":"Lycée municipal de Bouaké","type":"lycee","statut":"public"},
+      {"nom":"Lycée classique de Bouaké","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne 2 de Bouaké","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne jeunes filles de Bouaké","type":"lycee","statut":"public"},
+      {"nom":"Lycée moderne Belleville de Bouaké","type":"lycee","statut":"public"},
+      {"nom":"Lycée technique de Bouaké","type":"lycee","statut":"public"},
+      {"nom":"Lycée Martin Luther King","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne TSF de Bouaké","type":"college","statut":"public"},
+      {"nom":"Collège moderne jeunes filles de Bouaké","type":"college","statut":"public"},
+      {"nom":"Collège catholique Saint-Viateur de Bouaké","type":"college","statut":"prive"},
+      {"nom":"Collège Saint-Jacques de Bouaké","type":"college","statut":"prive"},
+      {"nom":"Collège Reine Pokou","type":"college","statut":"prive"},
+      {"nom":"Collège Victor Hugo de Bouaké","type":"college","statut":"prive"},
+      {"nom":"Institut Ouëzzin Coulibaly","type":"college","statut":"prive"},
+      {"nom":"Collège Yamousso Marie-Thérèse","type":"college","statut":"prive"}
+    ]},
+    {"nom":"Yamoussoukro","ecoles":[
+      {"nom":"Lycée scientifique de Yamoussoukro","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Yamoussoukro","type":"college","statut":"public"},
+      {"nom":"Collège moderne II de Yamoussoukro","type":"college","statut":"public"},
+      {"nom":"Collège Notre-Dame des Lacs","type":"college","statut":"prive"},
+      {"nom":"Institut d'enseignement secondaire Eden","type":"college","statut":"prive"}
+    ]},
+    {"nom":"Daloa","ecoles":[
+      {"nom":"Lycée moderne de Daloa","type":"lycee","statut":"public"},
+      {"nom":"Lycée municipal de Daloa","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Daloa","type":"college","statut":"public"},
+      {"nom":"Collège Horizon de Daloa","type":"college","statut":"prive"}
+    ]},
+    {"nom":"Korhogo","ecoles":[
+      {"nom":"Lycée moderne de Korhogo","type":"lycee","statut":"public"},
+      {"nom":"Lycée municipal de Korhogo","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Korhogo","type":"college","statut":"public"},
+      {"nom":"Collège Les Étoiles de Korhogo","type":"college","statut":"prive"}
+    ]},
+    {"nom":"San-Pédro","ecoles":[
+      {"nom":"Lycée moderne de San-Pédro","type":"lycee","statut":"public"},
+      {"nom":"Lycée professionnel de San-Pédro","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de San-Pédro","type":"college","statut":"public"},
+      {"nom":"Collège Excellence de San-Pédro","type":"college","statut":"prive"}
+    ]},
+    {"nom":"Man","ecoles":[
+      {"nom":"Lycée moderne de Man","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Man","type":"college","statut":"public"}
+    ]},
+    {"nom":"Gagnoa","ecoles":[
+      {"nom":"Lycée moderne de Gagnoa","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Gagnoa","type":"college","statut":"public"}
+    ]},
+    {"nom":"Divo","ecoles":[
+      {"nom":"Lycée moderne de Divo","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Divo","type":"college","statut":"public"}
+    ]},
+    {"nom":"Abengourou","ecoles":[
+      {"nom":"Lycée moderne d'Abengourou","type":"lycee","statut":"public"},
+      {"nom":"Lycée départemental Roi Bonzou II","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Abengourou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Bondoukou","ecoles":[
+      {"nom":"Lycée moderne de Bondoukou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Bondoukou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Odienné","ecoles":[
+      {"nom":"Lycée moderne d'Odienné","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Odienné","type":"college","statut":"public"}
+    ]},
+    {"nom":"Ferkessédougou","ecoles":[
+      {"nom":"Lycée moderne de Ferkessédougou","type":"lycee","statut":"public"},
+      {"nom":"Lycée professionnel de Ferké","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Ferkessédougou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Séguéla","ecoles":[
+      {"nom":"Lycée moderne de Séguéla","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Séguéla","type":"college","statut":"public"}
+    ]},
+    {"nom":"Boundiali","ecoles":[
+      {"nom":"Lycée moderne de Boundiali","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Boundiali","type":"college","statut":"public"}
+    ]},
+    {"nom":"Katiola","ecoles":[
+      {"nom":"Lycée moderne de Katiola","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Katiola","type":"college","statut":"public"}
+    ]},
+    {"nom":"Bouaflé","ecoles":[
+      {"nom":"Lycée moderne de Bouaflé","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Bouaflé","type":"college","statut":"public"}
+    ]},
+    {"nom":"Sinfra","ecoles":[
+      {"nom":"Lycée moderne de Sinfra","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Sinfra","type":"college","statut":"public"}
+    ]},
+    {"nom":"Issia","ecoles":[
+      {"nom":"Lycée moderne d'Issia","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Issia","type":"college","statut":"public"}
+    ]},
+    {"nom":"Soubré","ecoles":[
+      {"nom":"Lycée moderne de Soubré","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Soubré","type":"college","statut":"public"}
+    ]},
+    {"nom":"Aboisso","ecoles":[
+      {"nom":"Lycée moderne d'Aboisso","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Aboisso","type":"college","statut":"public"}
+    ]},
+    {"nom":"Dabou","ecoles":[
+      {"nom":"Lycée moderne Akpa Gnagne Martin de Dabou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Dabou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Agboville","ecoles":[
+      {"nom":"Lycée moderne d'Agboville","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Agboville","type":"college","statut":"public"}
+    ]},
+    {"nom":"Adzopé","ecoles":[
+      {"nom":"Lycée moderne 01 d'Adzopé","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Adzopé","type":"college","statut":"public"}
+    ]},
+    {"nom":"Daoukro","ecoles":[
+      {"nom":"Lycée moderne de Daoukro","type":"lycee","statut":"public"},
+      {"nom":"Lycée professionnel de Daoukro","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Daoukro","type":"college","statut":"public"}
+    ]},
+    {"nom":"Dimbokro","ecoles":[
+      {"nom":"Lycée moderne de Dimbokro","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Dimbokro","type":"college","statut":"public"}
+    ]},
+    {"nom":"Toumodi","ecoles":[
+      {"nom":"Lycée moderne Camille Alliali de Toumodi","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Toumodi","type":"college","statut":"public"}
+    ]},
+    {"nom":"Tiébissou","ecoles":[
+      {"nom":"Lycée Coffi Gadeau de Tiébissou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Tiébissou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Béoumi","ecoles":[
+      {"nom":"Lycée moderne de Béoumi","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Béoumi","type":"college","statut":"public"}
+    ]},
+    {"nom":"Sakassou","ecoles":[
+      {"nom":"Lycée moderne Paul Akoto Yao de Sakassou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Sakassou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Agnibilékrou","ecoles":[
+      {"nom":"Lycée moderne d'Agnibilékrou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne d'Agnibilékrou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Bongouanou","ecoles":[
+      {"nom":"Lycée moderne de Bongouanou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Bongouanou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Guiglo","ecoles":[
+      {"nom":"Lycée moderne de Guiglo","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Guiglo","type":"college","statut":"public"}
+    ]},
+    {"nom":"Duékoué","ecoles":[
+      {"nom":"Lycée moderne de Duékoué","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Duékoué","type":"college","statut":"public"}
+    ]},
+    {"nom":"Sassandra","ecoles":[
+      {"nom":"Lycée moderne de Sassandra","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Sassandra","type":"college","statut":"public"}
+    ]},
+    {"nom":"Tabou","ecoles":[
+      {"nom":"Lycée moderne de Tabou","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Tabou","type":"college","statut":"public"}
+    ]},
+    {"nom":"Bouna","ecoles":[
+      {"nom":"Lycée moderne de Bouna","type":"lycee","statut":"public"},
+      {"nom":"Collège municipal de Nassian","type":"college","statut":"public"},
+      {"nom":"Collège moderne de Doropo","type":"college","statut":"public"}
+    ]},
+    {"nom":"Touba","ecoles":[
+      {"nom":"Lycée moderne de Touba","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Touba","type":"college","statut":"public"}
+    ]},
+    {"nom":"Mankono","ecoles":[
+      {"nom":"Lycée moderne de Mankono","type":"lycee","statut":"public"},
+      {"nom":"Collège moderne de Mankono","type":"college","statut":"public"}
+    ]}
+  ]
+}

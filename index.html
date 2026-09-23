@@ -136,9 +136,22 @@ h1{font-size:22px} h2{font-size:17px} h3{font-size:15px}
 
 <!-- ═════════ VIEW : ÉCOLE (annonces) ═════════ -->
 <div class="view" id="view-ecole">
-  <h2 style="margin-bottom:10px">📣 Nouvelles de l'école</h2>
-  <p class="note" style="margin-bottom:14px">Convocations, urgences, fêtes, notes 📝 — répondez directement 👀=vu par l'école.</p>
-  <div id="ann-list"></div>
+  <div class="seg" id="ecole-seg">
+    <button class="sel" id="tab-news" onclick="ecoleTab('news')">📣 Nouvelles</button>
+    <button id="tab-dir" onclick="ecoleTab('dir')">🗺️ Villes & écoles</button>
+  </div>
+  <div id="ecole-news">
+    <h2 style="margin-bottom:10px">📣 Nouvelles de l'école</h2>
+    <p class="note" style="margin-bottom:14px">Infos, réunions, urgences — touchez « J'ai reçu » pour que l'école le sache.</p>
+    <div id="ann-list"></div>
+  </div>
+  <div id="ecole-dir" class="hidden">
+    <button class="btn-ghost hidden" id="dir-back" onclick="dirBack()" style="margin-bottom:10px">← Villes</button>
+    <h2 id="dir-title" style="margin-bottom:8px">🗺️ Villes de Côte d'Ivoire</h2>
+    <p class="note" id="dir-note" style="margin-bottom:10px">Touchez une ville pour voir ses collèges et lycées reconnus.</p>
+    <input id="dir-search" placeholder="🔍 Rechercher une ville…" oninput="renderDir()" style="margin-bottom:10px">
+    <div id="dir-list"></div>
+  </div>
 </div>
 
 <!-- ═════════ VIEW : COMPTE ═════════ -->
@@ -184,7 +197,7 @@ h1{font-size:22px} h2{font-size:17px} h3{font-size:15px}
       <div class="inp-row"><label>🔑 Mot de passe * (8 caractères, lettre + chiffre)</label><input id="r-pw" type="password"></div>
       <div class="inp-row"><label>🔑 Encore une fois *</label><input id="r-pw2" type="password"></div>
       <button class="btn-main" onclick="doRegister()">✨ Créer mon compte famille</button>
-      <p class="note" style="margin-top:10px;text-align:center">🎁 <b>30 jours gratuits</b> — puis 3 000 F/an <b>pour toute la famille</b>.</p>
+      <p class="note" style="margin-top:10px;text-align:center" id="auth-price-note">🎁 <b>30 jours gratuits</b> — puis 3 000 F/an <b>pour toute la famille</b>.</p>
     </div>
     <div id="auth-login" class="hidden">
       <div class="inp-row"><label>📞 Téléphone</label><input id="l-tel" type="tel" maxlength="14"></div>
@@ -236,6 +249,8 @@ const LS='el_parent';
 let parent = JSON.parse(localStorage.getItem(LS)||'null');  // {id,token,nom,photo}
 let me = null, feed = {announcements:[],notifications:[]}, kidSel = null, absKid = null, payMethod = 'wave';
 let ws = null, reconnects = 0;
+let CFG = { price: 3000, trialDays: 30, free: false };
+function priceLbl(){ return CFG.free ? 'gratuit' : (CFG.price.toLocaleString('fr-FR')+' F/an'); }
 
 function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._to); t._to=setTimeout(()=>t.classList.remove('show'),2800); }
 function authH(){ return {'Content-Type':'application/json','X-Parent-Token': parent?parent.token:''}; }
@@ -255,7 +270,45 @@ function showView(v){
   if(v==='view-account') renderAccount();
 }
 function openKids(){ if(!parent) return showView('view-auth'); showView('view-kids'); renderKidTabs(); }
-function openEcole(){ if(!parent) return showView('view-auth'); showView('view-ecole'); renderAnnouncements(); }
+function openEcole(){ if(!parent) return showView('view-auth'); showView('view-ecole'); renderAnnouncements(); if(ecoleMode==='dir') renderDir(); }
+let ecoleMode='news', dirVille=null, dirCache={villes:[], ecoles:[]};
+function ecoleTab(m){
+  ecoleMode=m;
+  $('#tab-news').classList.toggle('sel', m==='news');
+  $('#tab-dir').classList.toggle('sel', m==='dir');
+  $('#ecole-news').classList.toggle('hidden', m!=='news');
+  $('#ecole-dir').classList.toggle('hidden', m!=='dir');
+  if(m==='news') renderAnnouncements(); else renderDir();
+}
+async function renderDir(){
+  const box=$('#dir-list'); if(!box) return;
+  if(!dirVille){
+    $('#dir-back').classList.add('hidden');
+    $('#dir-title').textContent='🗺️ Villes de Côte d\'Ivoire';
+    $('#dir-note').textContent='Touchez une ville — ses collèges et lycées s\'affichent.';
+    $('#dir-search').classList.remove('hidden');
+    if(!dirCache.villes.length){
+      try{ const r=await fetch('/api/catalog'); const d=await r.json(); dirCache.villes=d.villes||[]; }catch(e){}
+    }
+    const q=($('#dir-search').value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const list=dirCache.villes.map((v,i)=>({v,i})).filter(x=>!q || x.v.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q));
+    box.innerHTML=list.map(x=>`<button class="card" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center" onclick="openVilleIdx(${x.i})"><span><b>${esc(x.v.nom)}</b></span><span class="status st-info">${x.v.n} ▸</span></button>`).join('')||'<p class="note">Aucune ville.</p>';
+    return;
+  }
+  $('#dir-back').classList.remove('hidden');
+  $('#dir-title').textContent='🏫 '+dirVille;
+  $('#dir-note').textContent='Collèges et lycées reconnus. 🟠 = déjà sur ÉCOLE LINK.';
+  $('#dir-search').classList.add('hidden');
+  box.innerHTML='<p class="note">Chargement…</p>';
+  try{
+    const r=await fetch('/api/catalog?ville='+encodeURIComponent(dirVille));
+    const d=await r.json();
+    dirCache.ecoles=d.ecoles||[];
+    box.innerHTML=dirCache.ecoles.map(e=>`<div class="trow card" style="display:flex;gap:10px;align-items:flex-start"><span style="font-size:20px">${e.type==='lycee'?'🎓':'🏫'}</span><span style="flex:1"><b>${esc(e.nom)}</b><br><span class="note">${e.type==='lycee'?'Lycée':'Collège'} · ${e.statut==='public'?'public':'privé'}${e.surPlateforme?' · 🟠 sur ÉCOLE LINK':''}</span></span></div>`).join('')||'<p class="note">Aucun établissement listé.</p>';
+  }catch(e){ box.innerHTML='<p class="note">Réseau — réessayez.</p>'; }
+}
+function openVilleIdx(i){ dirVille=(dirCache.villes[i]||{}).nom; renderDir(); }
+function dirBack(){ dirVille=null; renderDir(); }
 
 /* ─────────── RÉSEAU TEMPS RÉEL ─────────── */
 function connectWs(){
@@ -299,12 +352,14 @@ function renderSubBanner(){
   const el=$('#sub-banner'); if(!el) return;
   if(!me){ el.innerHTML=''; return; }
   const s=me.sub;
-  if(s.active && s.until){
+  if(s.free || CFG.free){
+    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#4CAF87,#2E7D5B)"><b class="big">🎁 Accès famille gratuit</b>Offert par la plateforme — suivez vos enfants sans paiement.</div>`;
+  } else if(s.active && s.until){
     el.innerHTML=`<div class="sub-card"><b class="big">🧡 Abonnement famille actif</b>✓ jusqu'au <b>${fmtDay(s.until)}</b> — merci pour votre confiance.</div>`;
   } else if(s.trialDaysLeft>0){
-    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#4CAF87,#2E7D5B)"><b class="big">🎁 Essai gratuit : plus que ${s.trialDaysLeft} jour${s.trialDaysLeft>1?'s':''}</b>Après l'essai : 3 000 F/an pour <b>toute la famille</b>. Touchez 👤 Compte pour voir.</div>`;
+    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#4CAF87,#2E7D5B)"><b class="big">🎁 Essai gratuit : plus que ${s.trialDaysLeft} jour${s.trialDaysLeft>1?'s':''}</b>Après l'essai : ${priceLbl()} pour <b>toute la famille</b>. Touchez 👤 Compte pour voir.</div>`;
   } else {
-    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#D64545,#A82929)"><b class="big">⏳ Période d'essai terminée</b>Poursuivez le suivi de vos enfants : <b>3 000 F/an par famille</b> — 👤 Compte → Abonnement.</div>`;
+    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#D64545,#A82929)"><b class="big">⏳ Période d'essai terminée</b>Poursuivez le suivi de vos enfants : <b>${priceLbl()} par famille</b> — 👤 Compte → Abonnement.</div>`;
   }
 }
 function kidTodayChip(k){
@@ -418,9 +473,12 @@ function renderAnnouncements(){
     const cls = a.cat==='urgent'?'c-urgent': a.cat==='reunion'?'c-reunion':'c-info';
     const rsvp = a.cat==='reunion' ? `
       <div class="rsvp-row">
-        <button class="yes ${a.rsvp&&a.rsvp.resp==='oui'?'sel':''}" onclick="sendRsvp('${a.id}','oui')">${a.rsvp&&a.rsvp.resp==='oui'?'✅ Je serai présent(e)':'✅ Je viens'}</button>
-        <button class="no ${a.rsvp&&a.rsvp.resp==='non'?'sel':''}" onclick="sendRsvp('${a.id}','non')">${a.rsvp&&a.rsvp.resp==='non'?'❌ Absence confirmée':'❌ Je ne viens pas'}</button>
+        <button class="yes ${a.rsvp&&a.rsvp.resp==='oui'?'sel':''}" onclick="event.stopPropagation();sendRsvp('${a.id}','oui')">${a.rsvp&&a.rsvp.resp==='oui'?'✅ Je serai présent(e)':'✅ Je viens'}</button>
+        <button class="no ${a.rsvp&&a.rsvp.resp==='non'?'sel':''}" onclick="event.stopPropagation();sendRsvp('${a.id}','non')">${a.rsvp&&a.rsvp.resp==='non'?'❌ Absence confirmée':'❌ Je ne viens pas'}</button>
       </div>` : '';
+    const ackBtn = a.ack
+      ? `<p class="note" style="margin-top:8px;color:var(--ok);font-weight:800">📩 Reçu — l'école le sait</p>`
+      : `<button class="btn-line" style="margin-top:10px" onclick="event.stopPropagation();ackAnn('${a.id}')">📩 J'ai reçu ce message</button>`;
     return `<div class="ann-card ${a.cat==='urgent'?'urgent':''} ${a.read?'':'unread'}" style="${a.read?'':'border-color:var(--o);border-width:1.5px'}" onclick="markAnnRead('${a.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="cat ${cls}">${cat}</span><small class="note">${relTime(a.at)}</small></div>
       <b style="font-size:15px;display:block;margin-bottom:4px">${a.read?'':'🟢 '}${esc(a.title)}</b>
@@ -428,6 +486,7 @@ function renderAnnouncements(){
       ${a.reunionAt?`<p style="font-size:12.5px;font-weight:800;color:#1A5FBD;margin-top:6px">🕐 Le ${fmtDay(a.reunionAt)}</p>`:''}
       ${a.pic?`<img src="${a.pic}" style="width:100%;border-radius:12px;margin-top:8px">`:''}
       <small class="note" style="display:block;margin-top:7px">${esc(a.school)}${a.classe?' · classe '+esc(a.classe):''} ${a.read?'· 👁️ vue':''}</small>
+      ${ackBtn}
       ${rsvp}
     </div>`;
   }).join('');
@@ -567,6 +626,11 @@ async function boot(fresh){
   if(fresh) toast('👋 Bienvenue '+ (parent.nom||'').split(' ')[0] +' !');
 }
 if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('/sw.js').catch(()=>{});
+fetch('/api/config').then(r=>r.json()).then(c=>{
+  CFG={price:c.price||0, trialDays:c.trialDays||0, free:!!c.free};
+  const n=document.getElementById('auth-price-note');
+  if(n) n.innerHTML = CFG.free ? '🎁 <b>Accès gratuit</b> pour toute la famille.' : ('🎁 <b>'+CFG.trialDays+' jours gratuits</b> — puis '+priceLbl()+' <b>pour toute la famille</b>.');
+}).catch(()=>{});
 boot(false);
 </script>
 </body>

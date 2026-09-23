@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const CATALOG = require('./catalog-ci.json');
 const PORT = process.env.PORT || 8080;
 const DB_FILE = path.join(__dirname, 'db.json');
 const APP_NAME = 'ÉCOLE LINK';
@@ -124,13 +125,23 @@ function findParentByToken(req) {
 function staffOf(sess) { return sess && sess.role === 'staff' ? db.staff.find(x => x.id === sess.staffId) : null; }
 
 /* ───────── Modèle d'affaires : abonnement famille ───────── */
+function priceOf() {
+  const p = db.settings && db.settings.price;
+  return (typeof p === 'number' && isFinite(p) && p >= 0) ? Math.round(p) : SUB_PRICE;
+}
+function trialDaysOf() {
+  const t = db.settings && db.settings.trialDays;
+  return (typeof t === 'number' && isFinite(t) && t >= 0 && t <= 365) ? Math.round(t) : TRIAL_DAYS;
+}
+function isFree() { return priceOf() === 0; }
 function subOf(parent) {
+  if (isFree()) return { active: true, trialDaysLeft: 0, until: null, price: 0, free: true };
   const now = Date.now();
   const trial = parent.trialEnd || 0, sub = parent.subUntil || 0;
   const active = now < trial || now < sub;
   const trialDaysLeft = trial ? Math.max(0, Math.ceil((trial - now) / 86400000)) : 0;
   const until = sub > now ? new Date(sub).toISOString().slice(0, 10) : null;
-  return { active, trialDaysLeft, until, price: SUB_PRICE };
+  return { active, trialDaysLeft, until, price: priceOf(), free: false };
 }
 function parentsOfStudent(studentId) { return db.parents.filter(p => (p.children || []).some(c => c.studentId === studentId)); }
 function childrenOf(parent) {
@@ -187,7 +198,25 @@ function className(id) { const c = db.classes.find(x => x.id === id); return c ?
 async function handleApi(req, res, p, url) {
   /* ---- Santé & config ---- */
   if (p === '/api/health') return sendJson(res, 200, { ok: true, app: APP_NAME, at: nowISO() });
-  if (p === '/api/config') return sendJson(res, 200, { price: SUB_PRICE, trialDays: TRIAL_DAYS, subDays: SUB_DAYS, vapid: vapidKeys() ? db.settings.vapid.publicKey : null });
+  if (p === '/api/catalog' && req.method === 'GET') {
+    const q = (url.searchParams.get('ville') || '').trim();
+    if (!q) {
+      return sendJson(res, 200, {
+        villes: (CATALOG.villes || []).map(v => ({ nom: v.nom, n: (v.ecoles || []).length }))
+      });
+    }
+    const v = (CATALOG.villes || []).find(x => x.nom === q);
+    if (!v) return sendJson(res, 404, { error: 'Ville introuvable' });
+    const live = db.schools.map(s => (s.nom || '').toLowerCase());
+    return sendJson(res, 200, {
+      ville: v.nom,
+      ecoles: (v.ecoles || []).map(e => ({
+        ...e,
+        surPlateforme: live.some(n => n.includes((e.nom || '').toLowerCase().slice(0, 18)))
+      }))
+    });
+  }
+  if (p === '/api/config') return sendJson(res, 200, { price: priceOf(), trialDays: trialDaysOf(), subDays: SUB_DAYS, free: isFree(), vapid: vapidKeys() ? db.settings.vapid.publicKey : null });
 
   /* ---- PDG : premier mot de passe puis connexion ---- */
   if (p === '/api/admin/setup' && req.method === 'POST') {
@@ -225,9 +254,9 @@ async function handleApi(req, res, p, url) {
     if (perr) return sendJson(res, 400, { error: perr });
     if (db.parents.find(x => x.tel === tel)) return sendJson(res, 409, { error: 'Ce numéro a déjà un compte — connectez-vous' });
     const salt = crypto.randomBytes(12).toString('hex');
-    const par = { id: uid('PA'), nom: String(b.nom).trim(), tel, salt, passHash: hashPassword(salt, b.password), createdAt: nowISO(), children: [], trialEnd: daysFromNow(TRIAL_DAYS), subUntil: 0, pushSubs: [], blocked: false, read: {}, rsvp: {} };
+    const par = { id: uid('PA'), nom: String(b.nom).trim(), tel, salt, passHash: hashPassword(salt, b.password), createdAt: nowISO(), children: [], trialEnd: isFree() ? 0 : daysFromNow(trialDaysOf()), subUntil: 0, pushSubs: [], blocked: false, read: {}, rsvp: {} };
     db.parents.push(par); saveDb();
-    console.log('👨‍👩‍👧 Nouveau parent : ' + par.nom + ' (' + tel + ') — essai 30 jours');
+    console.log('👨‍👩‍👧 Nouveau parent : ' + par.nom + ' (' + tel + ') — ' + (isFree() ? 'accès gratuit' : ('essai ' + trialDaysOf() + ' jours')));
     return sendJson(res, 201, { ok: true, parentId: par.id, token: parentToken(par.passHash), nom: par.nom });
   }
   if (p === '/api/parents/login' && req.method === 'POST') {
@@ -288,6 +317,7 @@ async function handleApi(req, res, p, url) {
           school: schoolName(a.schoolId), classe: a.target.type === 'class' ? className(a.target.classId) : '',
           reunionAt: a.reunionAt || null,
           read: !!(par.read && par.read[a.id]),
+          ack: !!(par.ack && par.ack[a.id]),
           rsvp: (par.rsvp && par.rsvp[a.id]) || null
         }));
       const notes = db.notifications.filter(n => n.parentId === par.id).slice(-60).reverse();
@@ -298,6 +328,16 @@ async function handleApi(req, res, p, url) {
       if (b.notificationId) { const n = db.notifications.find(x => x.id === b.notificationId && x.parentId === par.id); if (n) n.read = true; }
       if (b.announcementId) { (par.read = par.read || {})[b.announcementId] = nowISO(); }
       saveDb();
+      return sendJson(res, 200, { ok: true });
+    }
+    if (p === '/api/parents/ack' && req.method === 'POST') {
+      const b = await readBody(req);
+      const a = db.announcements.find(x => x.id === b.announcementId);
+      if (!a) return sendJson(res, 404, { error: 'Message introuvable' });
+      (par.read = par.read || {})[a.id] = nowISO();
+      (par.ack = par.ack || {})[a.id] = nowISO();
+      saveDb();
+      notifySchool(a.schoolId, '📩', 'Message reçu', par.nom + ' a confirmé la réception de « ' + a.title + ' »');
       return sendJson(res, 200, { ok: true });
     }
     if (p === '/api/parents/rsvp' && req.method === 'POST') {
@@ -451,6 +491,17 @@ async function handleApi(req, res, p, url) {
     if (p === '/api/school/announce' && req.method === 'GET') {
       return sendJson(res, 200, db.announcements.filter(a => a.schoolId === mySchool).slice(-40).reverse().map(a => ({ ...a, stats: announceStats(a) })));
     }
+    if (p === '/api/school/announce/receipts' && req.method === 'GET') {
+      const a = db.announcements.find(x => x.id === url.searchParams.get('id') && x.schoolId === mySchool);
+      if (!a) return sendJson(res, 404, { error: 'Annonce introuvable' });
+      const rows = targetParents(a).map(p2 => ({
+        nom: p2.nom, tel: p2.tel,
+        vu: !!(p2.read && p2.read[a.id]),
+        recu: !!(p2.ack && p2.ack[a.id]),
+        rsvp: (p2.rsvp && p2.rsvp[a.id] && p2.rsvp[a.id].resp) || null
+      }));
+      return sendJson(res, 200, { titre: a.title, rows });
+    }
     if (p === '/api/school/announce' && req.method === 'POST') {
       const b = await readBody(req);
       if (!String(b.title || '').trim()) return sendJson(res, 400, { error: 'Titre requis' });
@@ -490,8 +541,38 @@ async function handleApi(req, res, p, url) {
     const sess = getSession(req);
     if (!sess || sess.role !== 'boss') return sendJson(res, 403, { error: 'Accès plateforme — connexion requise' });
 
+    if (p === '/api/admin/config' && req.method === 'POST') {
+      const b = await readBody(req);
+      if (b.price != null) {
+        const pr = parseFloat(b.price);
+        if (isNaN(pr) || pr < 0 || pr > 500000) return sendJson(res, 400, { error: 'Prix entre 0 (gratuit) et 500 000 F' });
+        db.settings.price = Math.round(pr);
+      }
+      if (b.trialDays != null) {
+        const td = parseInt(b.trialDays, 10);
+        if (isNaN(td) || td < 0 || td > 365) return sendJson(res, 400, { error: 'Essai entre 0 et 365 jours' });
+        db.settings.trialDays = td;
+      }
+      saveDb();
+      auditLog('tarif_modifie', { price: priceOf(), trialDays: trialDaysOf(), par: 'pdg' });
+      return sendJson(res, 200, { ok: true, price: priceOf(), trialDays: trialDaysOf(), free: isFree() });
+    }
+    if (p === '/api/admin/password' && req.method === 'POST') {
+      const b = await readBody(req);
+      if (hashPassword(db.settings.ownerSalt, b.current || '') !== db.settings.ownerPassHash)
+        return sendJson(res, 401, { error: 'Mot de passe actuel incorrect' });
+      const perr = validPassword(b.next);
+      if (perr) return sendJson(res, 400, { error: perr });
+      db.settings.ownerSalt = crypto.randomBytes(12).toString('hex');
+      db.settings.ownerPassHash = hashPassword(db.settings.ownerSalt, b.next);
+      saveDb();
+      sessions.forEach((v, k) => { if (v.role === 'boss') sessions.delete(k); });
+      auditLog('mdp_pdg_change', {});
+      return sendJson(res, 200, { ok: true });
+    }
     if (p === '/api/admin/state' && req.method === 'GET') {
       return sendJson(res, 200, {
+        price: priceOf(), trialDays: trialDaysOf(), free: isFree(),
         schools: db.schools.map(s => ({
           ...s,
           effectif: db.students.filter(x => x.schoolId === s.id).length,
@@ -593,9 +674,10 @@ function stats7(schoolId) {
 function announceStats(a) {
   const cible = targetParents(a).length;
   const reads = db.parents.filter(p => p.read && p.read[a.id]).length;
+  const acks = db.parents.filter(p => p.ack && p.ack[a.id]).length;
   const oui = db.parents.filter(p => p.rsvp && p.rsvp[a.id] && p.rsvp[a.id].resp === 'oui').length;
   const non = db.parents.filter(p => p.rsvp && p.rsvp[a.id] && p.rsvp[a.id].resp === 'non').length;
-  return { cible, reads, oui, non };
+  return { cible, reads, acks, oui, non };
 }
 function childNameOf(studentId) { const s = db.students.find(x => x.id === studentId); return s ? s.prenom + ' ' + s.nom : 'l\'élève'; }
 function frDate(iso) { try { return new Date(iso.length === 10 ? iso + 'T12:00:00Z' : iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Africa/Abidjan' }); } catch (e) { return iso; } }
@@ -608,6 +690,7 @@ function serveStatic(req, res, p) {
   else if (p === '/admin-login.html') file = 'admin-login.html';
   else if (p === '/sw.js') file = 'sw.js';
   else if (p === '/manifest.json') file = 'manifest.json';
+  else if (p === '/manifest-admin.json') file = 'manifest-admin.json';
   else if (p === '/ecole-link-icon-192.png') file = 'ecole-link-icon-192.png';
   else if (p === '/ecole-link-icon-512.png') file = 'ecole-link-icon-512.png';
   else if (p === '/logo-ecole-link.png' || p === '/favicon.ico') file = 'ecole-link-icon-512.png';

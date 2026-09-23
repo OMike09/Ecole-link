@@ -1,6 +1,6 @@
 {
   "name": "ecole-link",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "ÉCOLE LINK — le pont école ↔ parents (présences, convocations, alertes) 🇨🇮",
   "main": "server.js",
   "scripts": {
