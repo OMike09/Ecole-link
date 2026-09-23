@@ -613,6 +613,41 @@ async function handleApi(req, res, p, url) {
       auditLog('staff_cree', { nom: st.nom, ecole: s.nom, role: st.role });
       return sendJson(res, 201, { ok: true, id: st.id, nom: st.nom, tel, password: pw, passwordGenere: gen, school: s.nom });
     }
+    if (p === '/api/admin/parents' && req.method === 'GET') {
+      return sendJson(res, 200, db.parents.map(p2 => ({
+        id: p2.id, nom: p2.nom, tel: p2.tel, blocked: !!p2.blocked,
+        createdAt: p2.createdAt, enfants: childrenOf(p2).map(s => s.prenom + ' ' + s.nom),
+        sub: subOf(p2)
+      })));
+    }
+    if (p === '/api/admin/parents/block' && req.method === 'POST') {
+      const b = await readBody(req);
+      const par = db.parents.find(x => x.id === b.id);
+      if (!par) return sendJson(res, 404, { error: 'Compte introuvable' });
+      par.blocked = true; saveDb();
+      auditLog('parent_bloque', { parent: par.nom, motif: String(b.motif || 'incivilité').slice(0, 120) });
+      return sendJson(res, 200, { ok: true });
+    }
+    if (p === '/api/admin/parents/unblock' && req.method === 'POST') {
+      const b = await readBody(req);
+      const par = db.parents.find(x => x.id === b.id);
+      if (!par) return sendJson(res, 404, { error: 'Compte introuvable' });
+      par.blocked = false; saveDb();
+      auditLog('parent_debloque', { parent: par.nom });
+      return sendJson(res, 200, { ok: true });
+    }
+    if (p === '/api/admin/parents/delete' && req.method === 'POST') {
+      const b = await readBody(req);
+      const par = db.parents.find(x => x.id === b.id);
+      if (!par) return sendJson(res, 404, { error: 'Compte introuvable' });
+      const nom = par.nom;
+      db.parents = db.parents.filter(x => x.id !== par.id);
+      db.notifications = db.notifications.filter(n => n.parentId !== par.id);
+      db.payments = db.payments.filter(x => x.parentId !== par.id);
+      saveDb();
+      auditLog('parent_supprime', { parent: nom });
+      return sendJson(res, 200, { ok: true });
+    }
     if (p === '/api/admin/payments/validate' && req.method === 'POST') {
       const b = await readBody(req);
       const x = db.payments.find(z => z.id === b.id);

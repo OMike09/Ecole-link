@@ -189,6 +189,7 @@ h1{font-size:22px} h2{font-size:17px} h3{font-size:15px}
   <div class="seg" style="margin-top:12px">
     <button id="tab-insc" class="sel" onclick="authTab('register')">Inscription</button>
     <button id="tab-conn" onclick="authTab('login')">Connexion</button>
+    <button id="tab-school" onclick="authTab('school')">🏫 École</button>
   </div>
   <div class="card">
     <div id="auth-register">
@@ -584,7 +585,45 @@ function urlB64ToUint8(base64String){
 
 /* ─────────── AUTH ─────────── */
 let authMode='register';
-function authTab(m){ authMode=m; $('#tab-insc').classList.toggle('sel', m==='register'); $('#tab-conn').classList.toggle('sel', m==='login'); $('#auth-register').classList.toggle('hidden', m!=='register'); $('#auth-login').classList.toggle('hidden', m==='register'); }
+function authTab(m){
+  authMode=m;
+  $('#tab-insc').classList.toggle('sel', m==='register');
+  $('#tab-conn').classList.toggle('sel', m==='login');
+  $('#tab-school').classList.toggle('sel', m==='school');
+  $('#auth-register').classList.toggle('hidden', m!=='register');
+  $('#auth-login').classList.toggle('hidden', m!=='login');
+  $('#auth-school').classList.toggle('hidden', m!=='school');
+}
+async function doSchoolLogin(){
+  const tel=$('#s-tel').value.replace(/\D/g,''), pw=$('#s-pw').value;
+  if(tel.length<8||!pw) return toast('Téléphone + mot de passe requis');
+  try{
+    const r=await fetch('/api/school/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tel,password:pw})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return toast('❌ '+(d.error||'accès refusé'));
+    localStorage.setItem('el_staff','1');
+    enterStaff(d);
+  }catch(e){ toast('⏳ Serveur au réveil — réessayez'); }
+}
+function enterStaff(d){
+  parent=null; saveParent();
+  $$('.view').forEach(x=>x.classList.remove('on'));
+  $('#nav').style.display='none';
+  let v=$('#view-staff');
+  if(!v){
+    v=document.createElement('div'); v.id='view-staff'; v.className='view on';
+    v.innerHTML=`<div class="card"><h2>🏫 ${(d&&d.school)||'École'}</h2>
+      <p class="note">${(d&&d.nom)||''} · ${(d&&d.role)||''}</p>
+      <p style="margin:12px 0;font-size:14px">Pointage, annonces, classes : tout se fait ici, dans la même application que les familles.</p>
+      <a class="btn-main" href="/admin.html" style="text-decoration:none;display:block;text-align:center">📋 Ouvrir le tableau de l'école</a>
+      <button class="btn-line" style="margin-top:10px" onclick="staffOut()">⏻ Sortir</button>
+    </div>`;
+    document.body.insertBefore(v, $('#toast'));
+  }
+  v.classList.add('on');
+  toast('🏫 Bienvenue '+((d&&d.nom)||''));
+}
+function staffOut(){ localStorage.removeItem('el_staff'); fetch('/api/logout',{method:'POST'}); location.reload(); }
 async function doRegister(){
   const nom=$('#r-nom').value.trim(), tel=$('#r-tel').value.replace(/\D/g,''), pw=$('#r-pw').value, pw2=$('#r-pw2').value;
   if(nom.length<2) return toast('👤 Votre nom complet, s\'il vous plaît');

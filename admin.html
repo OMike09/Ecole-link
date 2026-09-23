@@ -223,6 +223,14 @@ label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bot
       <p class="note" id="cfg-hint" style="margin-top:8px"></p>
     </div>
   </div>
+  <div class="panel card hidden" id="p-boss-parents">
+    <h3>👨‍👩‍👧 Comptes familles — bloquer / supprimer <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <p class="note" style="margin-bottom:8px">Vous pilotez à distance. Un parent impoli : 🔒 bloquer (il ne rentre plus) ou 🗑️ supprimer (définitif).</p>
+      <input id="par-search" placeholder="🔍 Nom ou téléphone…" oninput="renderBossParents()" style="margin-bottom:10px">
+      <div id="boss-parents"></div>
+    </div>
+  </div>
   <div class="panel card hidden" id="p-boss-pay">
     <h3>💳 Abonnements à valider <span class="fold-ic">▾</span></h3>
     <div class="body"><div id="boss-pay"></div></div>
@@ -303,7 +311,8 @@ function enter(){
   $('#gate').classList.add('hidden'); $('#board').classList.remove('hidden');
   $('#net-dot').classList.add('on');
   const staffPanels=['p-stats','p-point','p-ann','p-classes','p-abs','p-stats7'];
-  const bossPanels=['p-boss-schools','p-boss-staff','p-boss-cfg','p-boss-pay','p-boss-stats','p-boss-audit'];
+  const bossPanels=['p-boss-schools','p-boss-staff','p-boss-cfg','p-boss-parents','p-boss-pay','p-boss-stats','p-boss-audit'];
+  const pwd=$('#btn-pwd'); if(pwd) pwd.classList.toggle('hidden', who.role!=='boss');
   staffPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='staff'));
   bossPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='boss'));
   if(who.role==='staff'){ $('#hello').textContent='🏫 '+who.school+' — '+who.nom+' ('+who.srole+')'; staffBoot(); }
@@ -479,6 +488,42 @@ async function loadBossState(){
       <button class="btn-ghost" style="color:var(--danger)" onclick="payAct('${x.id}','reject')">✗</button>
     </div>`).join(''):'<p class="empty">Aucun paiement en attente ☕</p>';
   $('#boss-audit').innerHTML=d.audit.length?d.audit.map(a=>`<div class="trow" style="font-size:12.5px"><span class="note" style="flex:none">${a.at.slice(5,16).replace('T',' ')}</span><span style="flex:1"><b>${a.kind}</b> — ${JSON.stringify(a.data).slice(0,90)}</span></div>`).join(''):'<p class="empty">Journal vierge.</p>';
+  try{
+    const rp=await fetch('/api/admin/parents'); BOSS_PARENTS=rp.ok?await rp.json():[];
+  }catch(e){ BOSS_PARENTS=[]; }
+  renderBossParents();
+}
+let BOSS_PARENTS=[];
+function renderBossParents(){
+  const el=$('#boss-parents'); if(!el) return;
+  const q=($('#par-search')&&$('#par-search').value||'').toLowerCase();
+  const list=(BOSS_PARENTS||[]).filter(p=>!q||(p.nom+' '+p.tel).toLowerCase().includes(q));
+  el.innerHTML=list.length?list.map(p=>`
+    <div class="trow">
+      <span style="font-size:18px">${p.blocked?'🔒':'👨‍👩‍👧'}</span>
+      <span style="flex:1"><b>${p.nom}</b> ${p.blocked?'<span class="status st-cancel">BLOQUÉ</span>':''}<br>
+        <span class="note">📞 ${p.tel} · ${(p.enfants||[]).join(', ')||'aucun enfant lié'}</span></span>
+      <button class="btn-ghost" style="color:${p.blocked?'var(--ok)':'#B4731D'}" onclick="parentAct('${p.id}','${p.blocked?'unblock':'block'}','${(p.nom||'').replace(/'/g,'')}')">${p.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
+      <button class="btn-ghost" style="color:var(--danger)" onclick="parentAct('${p.id}','delete','${(p.nom||'').replace(/'/g,'')}')">🗑️</button>
+    </div>`).join(''):'<p class="empty">Aucun compte famille.</p>';
+}
+async function parentAct(id, act, nom){
+  if(act==='delete'){
+    if(!confirm('🗑️ SUPPRIMER le compte de '+nom+' ?\n\nDéfinitif — il devra se réinscrire.')) return;
+    const r=await fetch('/api/admin/parents/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+    if(!r.ok) return toast('❌ impossible');
+    toast('🗑️ '+nom+' supprimé'); return loadBossState();
+  }
+  if(act==='block'){
+    const motif=prompt('🔒 Motif du blocage de '+nom+' (ex : propos déplacés) :','Propos inconvenants');
+    if(motif===null) return;
+    const r=await fetch('/api/admin/parents/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,motif})});
+    if(!r.ok) return toast('❌ impossible');
+    toast('🔒 '+nom+' bloqué — plus d\'accès'); return loadBossState();
+  }
+  if(!confirm('✅ Débloquer '+nom+' ?')) return;
+  await fetch('/api/admin/parents/unblock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  toast('✅ '+nom+' débloqué'); loadBossState();
 }
 async function createSchool(){
   const nom=$('#bs-nom').value.trim(); if(!nom) return toast('Nom de l\'école ?');
@@ -526,6 +571,16 @@ function showInstallFab(){
   document.body.appendChild(b);
 }
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+(async function resumeSession(){
+  try{
+    const r=await fetch('/api/admin/state');
+    if(r.ok){ who={role:'boss',nom:'Maître'}; enter(); return; }
+  }catch(e){}
+  try{
+    const r=await fetch('/api/school/me');
+    if(r.ok){ const d=await r.json(); who={role:'staff',nom:d.nom,school:d.school,srole:d.role}; enter(); }
+  }catch(e){}
+})();
 async function payAct(id, act){
   const ok=confirm(act==='validate'?'✅ Valider et ouvrir 1 an d\'abonnement pour cette famille ?':'✗ Rejeter cette preuve ?');
   if(!ok) return;
