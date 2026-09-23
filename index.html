@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#D96C00">
+<title>ÉCOLE LINK — le pont école ↔ parents</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/ecole-link-icon-192.png">
+<link rel="apple-touch-icon" href="/ecole-link-icon-192.png">
+<style>
+:root{
+  --o:#E8820C; --od:#C96A00; --ob:#FFF3E4; --ok:#0D7A4D; --danger:#D64545; --amber:#B4731D;
+  --ink:#211E19; --muted:#85806F; --line:#EDE3D3; --card:#FFFDF9; --card2:#FAF4E9; --bg:#FFFBF4;
+  --r:20px; --shadow:0 2px 16px rgba(150,90,10,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Segoe UI',Roboto,Ubuntu,'Helvetica Neue',sans-serif;background:var(--bg);color:var(--ink);max-width:560px;margin:0 auto;min-height:100vh;padding-bottom:86px}
+button{font-family:inherit;border:none;background:none;cursor:pointer;color:inherit}
+input,select,textarea{font-family:inherit;font-size:16px;width:100%;padding:14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--o)}
+label{font-size:12.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px}
+.inp-row{margin-bottom:12px}
+h1{font-size:22px} h2{font-size:17px} h3{font-size:15px}
+
+/* ─── barre du haut ─── */
+.topbar{position:sticky;top:0;z-index:30;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:8px;font-weight:900;font-size:18px;color:var(--od)}
+.brand img{width:34px;height:34px;border-radius:10px;box-shadow:0 3px 10px rgba(217,108,0,.3)}
+.brand small{display:block;font-size:8.5px;font-weight:900;letter-spacing:1.2px;color:var(--o)}
+.net-dot{width:9px;height:9px;border-radius:50%;background:#ccc}
+.net-dot.on{background:var(--ok)}
+
+/* ─── vue / panneaux ─── */
+.view{display:none;padding:16px 14px;padding-bottom:100px}
+.view.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+.btn-main{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,var(--o),var(--od));color:#fff;font-weight:800;font-size:15px;padding:14px 20px;border-radius:14px;width:100%;box-shadow:0 4px 14px rgba(217,108,0,.28)}
+.btn-line{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line);border-radius:12px;padding:12px 16px;font-weight:700;font-size:13.5px;color:var(--ink);background:#fff;width:100%}
+.btn-ghost{display:inline-flex;padding:9px 13px;border-radius:10px;border:1px dashed var(--line);font-weight:700;font-size:12.5px;color:var(--muted)}
+.seg{display:flex;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px;margin-bottom:14px}
+.seg button{flex:1;padding:11px 4px;border-radius:11px;font-weight:800;font-size:13px;color:var(--muted)}
+.seg button.sel{background:var(--o);color:#fff}
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+.status{display:inline-block;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px}
+.st-run{background:#FFF3D6;color:#8A6400} .st-ok{background:#DFF5E9;color:var(--ok)} .st-cancel{background:#FBE0E0;color:var(--danger)} .st-info{background:var(--ob);color:var(--od)}
+.badge-unread{display:inline-flex;min-width:20px;height:20px;border-radius:99px;background:var(--danger);color:#fff;font-size:11px;font-weight:900;align-items:center;justify-content:center;padding:0 6px}
+
+/* ─── barre du bas ─── */
+.navbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:40;padding:6px 4px 10px}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:10.5px;font-weight:800;color:var(--muted)}
+.nav-btn .ic{font-size:20px}
+.nav-btn.on{color:var(--od)}
+.nav-btn .badge{position:absolute;margin-left:22px;margin-top:-4px}
+
+/* ─── enfant ─── */
+.kid{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.kid-ava{width:56px;height:56px;border-radius:50%;background:var(--ob);color:var(--od);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;overflow:hidden;flex:none;border:2px solid var(--ob)}
+.kid-ava img{width:100%;height:100%;object-fit:cover}
+.kid-main{flex:1;min-width:0}
+.kid-main b{display:block;font-size:16px}
+.kid-main small{color:var(--muted);font-size:12px}
+.dot-today{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;border:2.5px solid var(--line)}
+.t-present{border-color:var(--ok);background:#EAF8F1} .t-absent{border-color:var(--danger);background:#FDEFEF} .t-retard{border-color:var(--amber);background:#FBF3E4} .t-none{border-color:var(--line);background:var(--card2);color:var(--muted)}
+
+/* ─── notifications / annonces ─── */
+.nrow{display:flex;gap:11px;padding:13px;border:1px solid var(--line);border-radius:15px;background:var(--card);margin-bottom:9px;box-shadow:var(--shadow)}
+.nrow.unread{border-color:var(--o);border-width:1.5px}
+.nrow .nic{font-size:22px;flex:none;width:30px;text-align:center}
+.nrow .nb{flex:1;min-width:0}
+.nrow b{font-size:13.5px;display:block;margin-bottom:2px}
+.nrow p{font-size:12.5px;color:var(--ink);line-height:1.45}
+.nrow time{font-size:10.5px;color:var(--muted);display:block;margin-top:4px}
+.ann-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.ann-card.urgent{border-color:#F3B9B9;background:#FFF8F7}
+.cat{display:inline-block;padding:4px 10px;border-radius:99px;font-size:10.5px;font-weight:900;letter-spacing:.3px}
+.c-urgent{background:#FBE0E0;color:var(--danger)} .c-reunion{background:#DFEBFB;color:#1A5FBD} .c-info{background:var(--ob);color:var(--od)}
+.rsvp-row{display:flex;gap:8px;margin-top:11px}
+.rsvp-row button{flex:1;padding:11px;border-radius:12px;font-weight:800;font-size:13px;border:1.5px solid var(--line)}
+.rsvp-row button.yes.sel{background:var(--ok);color:#fff;border-color:var(--ok)}
+.rsvp-row button.no.sel{background:var(--danger);color:#fff;border-color:var(--danger)}
+
+/* ─── abonnement ─── */
+.sub-card{border-radius:20px;padding:18px;background:linear-gradient(135deg,#F59B23,#C9600A);color:#fff;box-shadow:0 6px 20px rgba(217,108,0,.28);margin-bottom:14px}
+.sub-card b.big{font-size:19px;display:block;margin-bottom:4px}
+.pay-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+.pay-chip{padding:12px 6px;border-radius:12px;border:2px solid var(--line);text-align:center;font-weight:800;font-size:12.5px;background:#fff}
+.pay-chip.sel{border-color:var(--o);background:var(--ob);color:var(--od)}
+
+/* ─── modale ─── */
+.modal-bg{position:fixed;inset:0;background:rgba(30,20,5,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.modal-bg.show{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:20px 18px 30px;max-height:88vh;overflow-y:auto}
+.sheet-x{float:right;font-size:20px;color:var(--muted);padding:4px}
+
+.empty{text-align:center;padding:38px 20px;color:var(--muted)}
+.empty .ic{font-size:44px;display:block;margin-bottom:10px}
+.hidden{display:none!important}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#2B2417;color:#fff;padding:12px 20px;border-radius:99px;font-size:13.5px;font-weight:700;z-index:99;opacity:0;transition:opacity .25s;max-width:88%;text-align:center;pointer-events:none}
+#toast.show{opacity:1}
+.footer-ctn{text-align:center;padding:16px;font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">
+    <span><img src="/ecole-link-icon-192.png" alt="ÉCOLE LINK"> </span>
+    <span>ÉCOLE LINK<small>ÉCOLE ↔ PARENTS 🟠</small></span>
+  </div>
+  <span class="net-dot" id="net-dot" title="Connexion"></span>
+</div>
+
+<!-- ═════════ VIEW : ACCUEIL (famille) ═════════ -->
+<div class="view on" id="view-home">
+  <div id="sub-banner"></div>
+  <h2 style="margin-bottom:10px">👨‍👩‍👧 Ma famille</h2>
+  <div id="kids-list"></div>
+  <div id="link-cta" class="hidden">
+    <div class="empty">
+      <span class="ic">🧒</span>
+      <b>Aucun enfant lié pour le moment</b>
+      <p style="font-size:12.5px;margin:8px 0 14px">L'école vous a remis un <b>code à 6 chiffres</b> ? Liez votre enfant en 10 secondes.</p>
+    </div>
+  </div>
+  <button class="btn-line" onclick="showView('view-account')">➕ Lier un enfant (code à 6 chiffres)</button>
+  <h2 style="margin:18px 0 10px">🔔 Dernières alertes</h2>
+  <div id="notif-list"></div>
+</div>
+
+<!-- ═════════ VIEW : ENFANTS ═════════ -->
+<div class="view" id="view-kids">
+  <h2 style="margin-bottom:12px">🎒 Suivi des enfants</h2>
+  <div id="kid-tabs"></div>
+  <div id="kid-detail"></div>
+</div>
+
+<!-- ═════════ VIEW : ÉCOLE (annonces) ═════════ -->
+<div class="view" id="view-ecole">
+  <h2 style="margin-bottom:10px">📣 Nouvelles de l'école</h2>
+  <p class="note" style="margin-bottom:14px">Convocations, urgences, fêtes, notes 📝 — répondez directement 👀=vu par l'école.</p>
+  <div id="ann-list"></div>
+</div>
+
+<!-- ═════════ VIEW : COMPTE ═════════ -->
+<div class="view" id="view-account">
+  <h2 style="margin-bottom:12px">👤 Mon compte</h2>
+  <div id="sub-card"></div>
+  <div class="card">
+    <h3 style="margin-bottom:8px">👨‍👩‍👧 Mon profil</h3>
+    <div id="acc-profile"></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:8px">➕ Lier un enfant</h3>
+    <p class="note" style="margin-bottom:10px">Code à 6 chiffres remis par l'école (le même pour chaque enfant).</p>
+    <div style="display:flex;gap:8px">
+      <input id="link-code" inputmode="numeric" maxlength="6" placeholder="••••••" style="flex:1;text-align:center;font-size:20px;font-weight:900;letter-spacing:6px">
+      <button class="btn-main" style="width:auto;flex:none;padding:12px 18px" onclick="claimChild()">Lier ➜</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:8px">🔔 Alertes poche</h3>
+    <p class="note" style="margin-bottom:10px">Les alertes (absences, convocations) arrivent même application fermée.</p>
+    <button class="btn-line" id="push-btn" onclick="togglePush()">🔔 Activer les alertes sur ce téléphone</button>
+  </div>
+  <button class="btn-line" style="color:var(--danger)" onclick="logout()">⏻ Se déconnecter</button>
+  <p class="footer-ctn">ÉCOLE LINK v1.0 · la passerelle école ↔ parents 🟠</p>
+</div>
+
+<!-- ═════════ VIEW : CONNEXION / INSCRIPTION ═════════ -->
+<div class="view" id="view-auth">
+  <div style="text-align:center;padding:24px 10px 6px">
+    <img src="/ecole-link-icon-192.png" style="width:86px;height:86px;border-radius:22px;box-shadow:0 8px 26px rgba(217,108,0,.35)">
+    <h1 style="margin-top:10px;color:var(--od)">ÉCOLE LINK</h1>
+    <p class="note" style="font-size:13.5px">Suivez vos enfants à l'école — absences, convocations,<br>nouvelles — tout arrive chez vous. 🧡</p>
+  </div>
+  <div class="seg" style="margin-top:12px">
+    <button id="tab-insc" class="sel" onclick="authTab('register')">Inscription</button>
+    <button id="tab-conn" onclick="authTab('login')">Connexion</button>
+  </div>
+  <div class="card">
+    <div id="auth-register">
+      <div class="inp-row"><label>👤 Votre nom complet *</label><input id="r-nom" placeholder="Ex : Aminata Touré"></div>
+      <div class="inp-row"><label>📞 Téléphone * (identifiant)</label><input id="r-tel" type="tel" placeholder="07 00 00 00 00" maxlength="14"></div>
+      <div class="inp-row"><label>🔑 Mot de passe * (8 caractères, lettre + chiffre)</label><input id="r-pw" type="password"></div>
+      <div class="inp-row"><label>🔑 Encore une fois *</label><input id="r-pw2" type="password"></div>
+      <button class="btn-main" onclick="doRegister()">✨ Créer mon compte famille</button>
+      <p class="note" style="margin-top:10px;text-align:center">🎁 <b>30 jours gratuits</b> — puis 3 000 F/an <b>pour toute la famille</b>.</p>
+    </div>
+    <div id="auth-login" class="hidden">
+      <div class="inp-row"><label>📞 Téléphone</label><input id="l-tel" type="tel" maxlength="14"></div>
+      <div class="inp-row"><label>🔑 Mot de passe</label><input id="l-pw" type="password"></div>
+      <button class="btn-main" onclick="doLogin()">🔓 Se connecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ MODALE DÉCLARER ABSENCE ═════════ -->
+<div class="modal-bg" id="abs-bg" onclick="if(event.target===this)closeAbs()">
+  <div class="sheet">
+    <button class="sheet-x" onclick="closeAbs()">✕</button>
+    <h2 style="margin-bottom:2px">🤒 Déclarer une absence</h2>
+    <p class="note" style="margin-bottom:12px">L'école reçoit le message immédiatement, avec acquittement.</p>
+    <div class="inp-row"><label>Motif *</label>
+      <select id="ab-kind">
+        <option value="maladie">🤒 Maladie</option>
+        <option value="famille">👨‍👩‍👧 Raisons familiales</option>
+        <option value="voyage">✈️ Voyage</option>
+        <option value="autre">📝 Autre</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="inp-row"><label>Du</label><input id="ab-from" type="date"></div>
+      <div class="inp-row"><label>Au</label><input id="ab-to" type="date"></div>
+    </div>
+    <div class="inp-row"><label>Message (facultatif)</label><textarea id="ab-note" rows="2" placeholder="Fièvre depuis hier soir, médecin ce matin…"></textarea></div>
+    <button class="btn-ghost" onclick="document.getElementById('ab-cert').click()" style="margin-bottom:10px">📷 Joindre le certificat médical (photo)</button>
+    <input id="ab-cert" type="file" accept="image/*" style="display:none" onchange="onCert(this)">
+    <div id="ab-cert-view"></div>
+    <button class="btn-main" onclick="sendAbsence()">📤 Envoyer à l'école</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="navbar" id="nav">
+  <button class="nav-btn on" data-v="view-home" onclick="showView('view-home')"><span class="ic">🏠</span><span>Famille</span></button>
+  <button class="nav-btn" data-v="view-kids" onclick="openKids()"><span class="ic">🎒</span><span>Enfants</span></button>
+  <button class="nav-btn" data-v="view-ecole" onclick="openEcole()"><span class="ic">📣</span><span>École</span><span class="badge" id="ecole-badge"></span></button>
+  <button class="nav-btn" data-v="view-account" onclick="showView('view-account')"><span class="ic">👤</span><span>Compte</span></button>
+</div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const LS='el_parent';
+let parent = JSON.parse(localStorage.getItem(LS)||'null');  // {id,token,nom,photo}
+let me = null, feed = {announcements:[],notifications:[]}, kidSel = null, absKid = null, payMethod = 'wave';
+let ws = null, reconnects = 0;
+
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._to); t._to=setTimeout(()=>t.classList.remove('show'),2800); }
+function authH(){ return {'Content-Type':'application/json','X-Parent-Token': parent?parent.token:''}; }
+function saveParent(){ parent ? localStorage.setItem(LS, JSON.stringify(parent)) : localStorage.removeItem(LS); }
+function fmtDay(iso){ return new Date(iso).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}); }
+function relTime(iso){ const s=(Date.now()-new Date(iso))/1000; if(s<60)return 'à l\'instant'; if(s<3600)return Math.floor(s/60)+' min'; if(s<86400)return Math.floor(s/3600)+' h'; return fmtDay(iso); }
+function esc(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ─────────── NAVIGATION ─────────── */
+function showView(v){
+  if(!parent && v!=='view-auth') v='view-auth';
+  $$('.view').forEach(x=>x.classList.toggle('on', x.id===v));
+  $$('#nav .nav-btn').forEach(b=>b.classList.toggle('on', b.dataset.v===v && v!=='view-auth'));
+  $('#nav').style.display = parent ? 'flex' : 'none';
+  window.scrollTo({top:0});
+  if(v==='view-home') renderHome();
+  if(v==='view-account') renderAccount();
+}
+function openKids(){ if(!parent) return showView('view-auth'); showView('view-kids'); renderKidTabs(); }
+function openEcole(){ if(!parent) return showView('view-auth'); showView('view-ecole'); renderAnnouncements(); }
+
+/* ─────────── RÉSEAU TEMPS RÉEL ─────────── */
+function connectWs(){
+  if(!parent || location.protocol === 'file:') return;
+  try{
+    ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?parent='+encodeURIComponent(parent.token));
+    ws.onopen = ()=>{ $('#net-dot').classList.add('on'); reconnects=0; };
+    ws.onmessage = e=>{
+      try{
+        const m = JSON.parse(e.data);
+        if(m.type==='alerte' && m.notification){
+          toast(m.notification.icon+' '+m.notification.title);
+          refreshFeed();
+          if(navigator.vibrate) navigator.vibrate([120,60,120]);
+        }
+      }catch(err){}
+    };
+    ws.onclose = ()=>{ $('#net-dot').classList.remove('on'); const d=Math.min(30000, 1500*Math.pow(2,reconnects++)); setTimeout(connectWs, d); };
+  }catch(e){}
+}
+
+/* ─────────── DONNÉES ─────────── */
+async function refreshMe(){
+  if(!parent) return null;
+  try{
+    const r = await fetch('/api/parents/me',{headers:authH()});
+    if(r.status===401){ logout(true); return null; }
+    me = await r.json();
+  }catch(e){}
+  renderHome(); renderSubBanner(); renderAccount(); updateBadge();
+  return me;
+}
+async function refreshFeed(){
+  if(!parent) return;
+  try{ const r=await fetch('/api/parents/feed',{headers:authH()}); if(r.ok) feed=await r.json(); }catch(e){}
+  renderAlerts(); renderAnnouncements(); updateBadge();
+}
+
+/* ─────────── ACCUEIL ─────────── */
+function renderSubBanner(){
+  const el=$('#sub-banner'); if(!el) return;
+  if(!me){ el.innerHTML=''; return; }
+  const s=me.sub;
+  if(s.active && s.until){
+    el.innerHTML=`<div class="sub-card"><b class="big">🧡 Abonnement famille actif</b>✓ jusqu'au <b>${fmtDay(s.until)}</b> — merci pour votre confiance.</div>`;
+  } else if(s.trialDaysLeft>0){
+    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#4CAF87,#2E7D5B)"><b class="big">🎁 Essai gratuit : plus que ${s.trialDaysLeft} jour${s.trialDaysLeft>1?'s':''}</b>Après l'essai : 3 000 F/an pour <b>toute la famille</b>. Touchez 👤 Compte pour voir.</div>`;
+  } else {
+    el.innerHTML=`<div class="sub-card" style="background:linear-gradient(135deg,#D64545,#A82929)"><b class="big">⏳ Période d'essai terminée</b>Poursuivez le suivi de vos enfants : <b>3 000 F/an par famille</b> — 👤 Compte → Abonnement.</div>`;
+  }
+}
+function kidTodayChip(k){
+  const t=k.today;
+  if(!t) return {em:'—', cls:'t-none', txt:'pas encore de pointage'};
+  if(t==='present') return {em:'✅', cls:'t-present', txt:'présent(e) aujourd\'hui'};
+  if(t==='absent') return {em:'🚨', cls:'t-absent', txt:'ABSENT(E) aujourd\'hui'};
+  return {em:'⏰', cls:'t-retard', txt:'en retard aujourd\'hui'};
+}
+function renderHome(){
+  const box=$('#kids-list'), lst=$('#notif-list'); if(!box) return;
+  const kids = me ? me.children : [];
+  $('#link-cta').classList.toggle('hidden', !me || kids.length>0);
+  box.innerHTML = kids.map(k=>{
+    const c=kidTodayChip(k);
+    return `<div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectKid('${k.id}');openKids()">
+      <div class="kid-ava">${k.photo?`<img src="${k.photo}">`:esc((k.prenom||k.nom||'?')[0])}</div>
+      <div class="kid-main"><b>${esc(k.prenom)} ${esc(k.nom)}</b><small>${esc(k.school)} · ${esc(k.classe)}</small></div>
+      <div class="dot-today ${c.cls}" title="${c.txt}">${c.em}</div>
+    </div>`;
+  }).join('');
+  renderAlerts();
+}
+function renderAlerts(){
+  const el=$('#notif-list'); if(!el) return;
+  const rows = feed.notifications.slice(0,10);
+  if(!rows.length){ el.innerHTML='<p class="note" style="text-align:center;padding:14px">Silence radio pour le moment 🕊️ — tout va bien.</p>'; return; }
+  el.innerHTML = rows.map(n=>`
+    <div class="nrow ${n.read?'':'unread'}" onclick="markNotifRead('${n.id}')">
+      <span class="nic">${n.icon}</span>
+      <span class="nb"><b>${esc(n.title)}</b><p>${esc(n.body)}</p><time>${relTime(n.at)}</time></span>
+    </div>`).join('');
+}
+function updateBadge(){
+  const b=$('#ecole-badge'); if(!b || !me) return;
+  const unread = (me.unread||0) + feed.announcements.filter(a=>!a.read).length;
+  b.style.display = unread ? 'inline-flex' : 'none';
+  b.className = 'badge badge-unread'; b.textContent = unread;
+}
+
+/* ─────────── ENFANTS ─────────── */
+function renderKidTabs(){
+  const wrap=$('#kid-tabs');
+  const kids = me ? me.children : [];
+  if(!kids.length){ wrap.innerHTML=''; $('#kid-detail').innerHTML='<div class="empty"><span class="ic">🧒</span><b>Aucun enfant lié</b><p style="font-size:12.5px;margin-top:6px">On gagne du temps : retournez à 👤 Compte → « Lier un enfant » avec le code de l\'école.</p></div>'; return; }
+  if(!kidSel || !kids.find(k=>k.id===kidSel)) kidSel = kids[0].id;
+  wrap.innerHTML = `<div class="seg">${kids.map(k=>`<button class="${k.id===kidSel?'sel':''}" onclick="selectKid('${k.id}')">${esc(k.prenom)}</button>`).join('')}</div>`;
+  loadKidDetail();
+}
+function selectKid(id){ kidSel=id; if($('#view-kids').classList.contains('on')) renderKidTabs(); }
+async function loadKidDetail(){
+  const el=$('#kid-detail');
+  const k = (me?me.children:[]).find(x=>x.id===kidSel);
+  if(!k) return;
+  el.innerHTML = `<div class="card">
+      <div class="kid" style="margin-bottom:6px">
+        <div class="kid-ava">${k.photo?`<img src="${k.photo}">`:esc(k.prenom[0])}</div>
+        <div class="kid-main"><b>${esc(k.prenom)} ${esc(k.nom)}</b><small>${esc(k.school)} · classe ${esc(k.classe)}</small></div>
+      </div>
+      <div id="kid-today"></div>
+    </div>
+    <button class="btn-main" style="margin-bottom:12px" onclick="openAbs('${k.id}')">🤒 Déclarer une absence / maladie</button>
+    <div class="card"><h3 style="margin-bottom:10px">📅 Présences récentes</h3><div id="att-list"><p class="note">Chargement…</p></div></div>`;
+  const tc=kidTodayChip(k);
+  $('#kid-today').innerHTML=`<div style="display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--card2);font-size:13.5px;font-weight:700"><span style="font-size:18px">${tc.em}</span> Aujourd'hui : ${tc.txt}</div>`;
+  try{
+    const r=await fetch('/api/parents/attendance?studentId='+k.id,{headers:authH()});
+    const rows = r.ok ? await r.json() : [];
+    $('#att-list').innerHTML = rows.length ? rows.map(r=>{
+      const ic = r.status==='present'?'✅': r.status==='absent'?'🚨':'⏰';
+      const cls = r.status==='present'?'st-ok': r.status==='absent'?'st-cancel':'st-run';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px dashed var(--line);font-size:13.5px"><span>${fmtDay(r.date)}</span><span class="status ${cls}">${ic} ${r.status}</span></div>`;
+    }).join('') : '<p class="note">Pas encore d\'historique — le pointage quotidien s\'affichera ici.</p>';
+  }catch(e){ $('#att-list').innerHTML='<p class="note">Réseau faible — réessayez.</p>'; }
+}
+
+/* ─────────── ABSENCES (parent → école) ─────────── */
+function openAbs(kidId){
+  absKid = kidId;
+  const t=todayISO();
+  $('#ab-from').value=t; $('#ab-to').value=t; $('#ab-note').value=''; $('#ab-cert-view').innerHTML=''; window._cert='';
+  $('#abs-bg').classList.add('show');
+}
+function closeAbs(){ $('#abs-bg').classList.remove('show'); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function onCert(inp){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ window._cert=rd.result; $('#ab-cert-view').innerHTML=`<img src="${rd.result}" style="width:88px;height:88px;object-fit:cover;border-radius:12px;margin-bottom:10px;border:2px solid var(--o)">`; };
+  rd.readAsDataURL(f);
+}
+async function sendAbsence(){
+  if(!absKid) return closeAbs();
+  const kind=$('#ab-kind').value, from=$('#ab-from').value||todayISO(), to=$('#ab-to').value||from, note=$('#ab-note').value.trim();
+  if(kind!=='maladie' && !note) return toast('📝 Précisez le motif en quelques mots');
+  try{
+    const r=await fetch('/api/parents/absences',{method:'POST',headers:authH(),body:JSON.stringify({studentId:absKid,kind,from,to,note,certPhoto:window._cert||''})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return toast('❌ '+(d.error||'envoi impossible'));
+    closeAbs(); toast('📤 Envoyé à l\'école — acquittement à venir ✓');
+  }catch(e){ toast('⏳ Réseau — réessayez'); }
+}
+
+/* ─────────── ÉCOLE (annonces + convocations) ─────────── */
+function renderAnnouncements(){
+  const el=$('#ann-list'); if(!el) return;
+  const rows = feed.announcements;
+  if(!rows.length){ el.innerHTML='<div class="empty"><span class="ic">📭</span><b>Aucune annonce</b><p style="font-size:12.5px;margin-top:6px">Dès que l\'école écrira, le message atterrit ici — avec notification 🔔.</p></div>'; return; }
+  el.innerHTML = rows.map(a=>{
+    const cat = a.cat==='urgent'?'🚨 URGENT': a.cat==='reunion'?'📅 CONVOCATION':'ℹ️ INFO';
+    const cls = a.cat==='urgent'?'c-urgent': a.cat==='reunion'?'c-reunion':'c-info';
+    const rsvp = a.cat==='reunion' ? `
+      <div class="rsvp-row">
+        <button class="yes ${a.rsvp&&a.rsvp.resp==='oui'?'sel':''}" onclick="sendRsvp('${a.id}','oui')">${a.rsvp&&a.rsvp.resp==='oui'?'✅ Je serai présent(e)':'✅ Je viens'}</button>
+        <button class="no ${a.rsvp&&a.rsvp.resp==='non'?'sel':''}" onclick="sendRsvp('${a.id}','non')">${a.rsvp&&a.rsvp.resp==='non'?'❌ Absence confirmée':'❌ Je ne viens pas'}</button>
+      </div>` : '';
+    return `<div class="ann-card ${a.cat==='urgent'?'urgent':''} ${a.read?'':'unread'}" style="${a.read?'':'border-color:var(--o);border-width:1.5px'}" onclick="markAnnRead('${a.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="cat ${cls}">${cat}</span><small class="note">${relTime(a.at)}</small></div>
+      <b style="font-size:15px;display:block;margin-bottom:4px">${a.read?'':'🟢 '}${esc(a.title)}</b>
+      <p style="font-size:13.5px;line-height:1.5">${esc(a.body)}</p>
+      ${a.reunionAt?`<p style="font-size:12.5px;font-weight:800;color:#1A5FBD;margin-top:6px">🕐 Le ${fmtDay(a.reunionAt)}</p>`:''}
+      ${a.pic?`<img src="${a.pic}" style="width:100%;border-radius:12px;margin-top:8px">`:''}
+      <small class="note" style="display:block;margin-top:7px">${esc(a.school)}${a.classe?' · classe '+esc(a.classe):''} ${a.read?'· 👁️ vue':''}</small>
+      ${rsvp}
+    </div>`;
+  }).join('');
+}
+async function sendRsvp(id, resp){
+  try{
+    const r=await fetch('/api/parents/rsvp',{method:'POST',headers:authH(),body:JSON.stringify({announcementId:id,resp})});
+    if(r.ok){ toast(resp==='oui'?'✅ Présence confirmée à l\'école':'❌ Absence signalée à l\'école'); refreshFeed(); }
+    else toast('❌ envoi impossible');
+  }catch(e){ toast('⏳ Réseau — réessayez'); }
+}
+function markNotifRead(id){
+  const n=feed.notifications.find(x=>x.id===id); if(n && !n.read){ n.read=true; renderAlerts(); updateBadge(); fetch('/api/parents/read',{method:'POST',headers:authH(),body:JSON.stringify({notificationId:id})}).catch(()=>{}); }
+}
+function markAnnRead(id){
+  const a=feed.announcements.find(x=>x.id===id); if(a && !a.read){ a.read=true; renderAnnouncements(); updateBadge(); fetch('/api/parents/read',{method:'POST',headers:authH(),body:JSON.stringify({announcementId:id})}).catch(()=>{}); }
+}
+
+/* ─────────── COMPTE / ABONNEMENT ─────────── */
+async function renderAccount(){
+  const p=$('#acc-profile'), s=$('#sub-card');
+  if(p) p.innerHTML = me ? `<b style="font-size:16px">${esc(me.nom)}</b><p class="note" style="font-size:13px">📞 +225 ${esc(me.tel)}</p>` : '…';
+  if(!s || !me) return;
+  const sub=me.sub;
+  s.innerHTML = `<div class="card">
+    <h3 style="margin-bottom:8px">🧡 Abonnement famille</h3>
+    ${sub.active&&sub.until
+      ? `<p style="font-size:14px"><b>✓ actif jusqu'au ${fmtDay(sub.until)}</b></p><p class="note" style="margin-top:6px">Tous vos enfants, toutes leurs écoles. Renouvellement rappelé par notification avant l'échéance.</p>`
+      : sub.trialDaysLeft>0
+        ? `<p style="font-size:14px">🎁 <b>Essai gratuit : ${sub.trialDaysLeft} jour(s) restants</b></p><p class="note" style="margin-top:6px">Ensuite : <b>3 000 F/an</b> pour toute la famille — moins de 250 F/mois pour ne rien rater de l'école de vos enfants.</p>`
+        : `<p style="font-size:14px;color:var(--danger)"><b>⏳ Essai terminé</b></p><p class="note" style="margin-top:6px">3 000 F/an par famille — toujours gratuit : les alertes d'urgence.</p>`}
+    <div style="margin-top:12px"><b style="font-size:13.5px">Payer via :</b>
+      <div class="pay-grid">
+        <button class="pay-chip ${payMethod==='wave'?'sel':''}" onclick="payMethod='wave';renderAccount()">🟡 Wave</button>
+        <button class="pay-chip ${payMethod==='om'?'sel':''}" onclick="payMethod='om';renderAccount()">🟠 Orange Money</button>
+        <button class="pay-chip ${payMethod==='mtn'?'sel':''}" onclick="payMethod='mtn';renderAccount()">🟡 MTN MoMo</button>
+      </div>
+      <div class="inp-row"><label>Votre numéro payeur</label><input id="pay-tel" type="tel" maxlength="14" placeholder="07 .. .. .. .."></div>
+      <div class="inp-row"><label>Référence de la transaction *</label><input id="pay-ref" placeholder="✍️ reçue par SMS après le paiement"></div>
+      <button class="btn-main" onclick="sendPayment()">💳 Envoyer ma preuve de paiement — 3 000 F/an</button>
+      <p class="note" style="margin-top:8px;text-align:center">🔒 Validation humaine sous 24 h max — un message 🎉 vous confirme.</p>
+    </div>
+  </div>
+  <div class="card"><h3 style="margin-bottom:10px">🧾 Mes paiements</h3><div id="pay-list"><p class="note">Chargement…</p></div></div>`;
+  try{
+    const r=await fetch('/api/parents/payments',{headers:authH()});
+    const rows=r.ok?await r.json():[];
+    $('#pay-list').innerHTML=rows.length?rows.map(x=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px dashed var(--line)"><span>${fmtDay(x.at)} · ${x.method}</span><span class="status ${x.status==='validated'?'st-ok':x.status==='rejected'?'st-cancel':'st-run'}">${x.status==='validated'?'✓ validé':x.status==='rejected'?'✗ rejeté':'⏳ en attente'}</span></div>`).join(''):'<p class="note">Aucun paiement pour le moment.</p>';
+  }catch(e){}
+}
+async function sendPayment(){
+  const ref=$('#pay-ref').value.trim();
+  if(!ref) return toast('✍️ Indiquez la référence de la transaction');
+  try{
+    const r=await fetch('/api/parents/pay',{method:'POST',headers:authH(),body:JSON.stringify({method:payMethod,ref,tel:$('#pay-tel').value})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+    toast('🧡 Reçue ! Validation sous 24 h max'); $('#pay-ref').value='';
+    renderAccount();
+  }catch(e){ toast('⏳ Réseau — réessayez'); }
+}
+async function claimChild(){
+  const code=$('#link-code').value.replace(/\D/g,'');
+  if(code.length!==6) return toast('🔢 Le code fait 6 chiffres');
+  try{
+    const r=await fetch('/api/parents/claim',{method:'POST',headers:authH(),body:JSON.stringify({code})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return toast('❌ '+(d.error||'code refusé'));
+    toast('🤝 '+d.enfant+' rejoint votre famille ('+d.ecole+') !');
+    $('#link-code').value='';
+    await refreshMe(); showView('view-home');
+  }catch(e){ toast('⏳ Réseau — réessayez'); }
+}
+async function togglePush(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('🔕 Notifications non supportées ici');
+  const perm = await Notification.requestPermission();
+  if(perm!=='granted') return toast('🔕 Autorisation refusée — activez-la dans les réglages du navigateur');
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const cfg = await (await fetch('/api/config')).json();
+    if(!cfg.vapid) return toast('🔑 Clés push indisponibles côté serveur');
+    const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey: urlB64ToUint8(cfg.vapid)});
+    await fetch('/api/parents/push-sub',{method:'POST',headers:authH(),body:JSON.stringify({sub})});
+    $('#push-btn').textContent='✅ Alertes activées sur ce téléphone';
+    toast('🔔 Vous serez alerté même application fermée');
+  }catch(e){ toast('⏳ Activation impossible — réessayez'); }
+}
+function urlB64ToUint8(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(base64); const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
+  return out;
+}
+
+/* ─────────── AUTH ─────────── */
+let authMode='register';
+function authTab(m){ authMode=m; $('#tab-insc').classList.toggle('sel', m==='register'); $('#tab-conn').classList.toggle('sel', m==='login'); $('#auth-register').classList.toggle('hidden', m!=='register'); $('#auth-login').classList.toggle('hidden', m==='register'); }
+async function doRegister(){
+  const nom=$('#r-nom').value.trim(), tel=$('#r-tel').value.replace(/\D/g,''), pw=$('#r-pw').value, pw2=$('#r-pw2').value;
+  if(nom.length<2) return toast('👤 Votre nom complet, s\'il vous plaît');
+  if(tel.length<8) return toast('📞 Numéro invalide');
+  if(pw!==pw2||pw.length<8) return toast('🔑 Mot de passe (8+, identiques)');
+  try{
+    const r=await fetch('/api/parents/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom,tel,password:pw})});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===409) return toast('ℹ️ Ce numéro a déjà un compte — onglet Connexion');
+    if(!r.ok) return toast('❌ '+(d.error||'erreur'));
+    parent={id:d.parentId,token:d.token,nom:d.nom}; saveParent();
+    boot(true);
+  }catch(e){ toast('⏳ Serveur au réveil — réessayez dans ~1 min'); }
+}
+async function doLogin(){
+  const tel=$('#l-tel').value.replace(/\D/g,''), pw=$('#l-pw').value;
+  if(tel.length<8||!pw) return toast('📞 Téléphone + mot de passe requis');
+  try{
+    const r=await fetch('/api/parents/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tel,password:pw})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return toast('❌ '+(d.error||'identifiants incorrects'));
+    parent={id:d.parentId,token:d.token,nom:d.nom,photo:d.photo||''}; saveParent();
+    boot(true);
+  }catch(e){ toast('⏳ Serveur au réveil — réessayez dans ~1 min'); }
+}
+function logout(silent){
+  parent=null; me=null; saveParent();
+  if(!silent) toast('⏻ À bientôt 👋');
+  showView('view-auth');
+}
+
+/* ─────────── BOOT ─────────── */
+async function boot(fresh){
+  if(!parent){ showView('view-auth'); $('#nav').style.display='none'; return; }
+  showView('view-home');
+  connectWs();
+  await refreshMe();
+  await refreshFeed();
+  if(fresh) toast('👋 Bienvenue '+ (parent.nom||'').split(' ')[0] +' !');
+}
+if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('/sw.js').catch(()=>{});
+boot(false);
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f7f64f0c77e191',t:'MTc5MDE0OTg2NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>

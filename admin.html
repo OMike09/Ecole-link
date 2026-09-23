@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ÉCOLE LINK — Portail (école & plateforme) 🟠</title>
+<link rel="icon" type="image/png" href="/ecole-link-icon-192.png">
+<style>
+:root{--o:#E8820C;--od:#C96A00;--ob:#FFF3E4;--ok:#0D7A4D;--danger:#D64545;--ink:#211E19;--muted:#85806F;--line:#EDE3D3;--card:#FFFDF9;--card2:#FAF4E9;--bg:#FFFBF4;--r:18px;--shadow:0 2px 14px rgba(150,90,10,.10)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Segoe UI',Roboto,Ubuntu,sans-serif;background:var(--bg);color:var(--ink);max-width:860px;margin:0 auto;padding:14px 12px 60px}
+button{font-family:inherit;border:none;background:none;cursor:pointer;color:inherit}
+input,select,textarea{font-family:inherit;font-size:15px;width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);outline:none}
+input:focus,select:focus{border-color:var(--o)}
+label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hidden{display:none!important}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 2px 14px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:900;font-size:18px;color:var(--od)}
+.brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 3px 10px rgba(217,108,0,.3)}
+.net-dot{width:9px;height:9px;border-radius:50%;background:#ccc}.net-dot.on{background:var(--ok)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.panel{margin-bottom:12px}
+.panel > h3{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;font-size:15px}
+.panel > h3 .fold-ic{color:var(--muted);font-size:13px;flex:none;transition:transform .15s}
+.panel.folded > *:not(h3){display:none!important}
+.panel .body{padding:0 16px 16px}
+.btn-main{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,var(--o),var(--od));color:#fff;font-weight:800;font-size:14px;padding:12px 18px;border-radius:12px}
+.btn-line{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line);border-radius:11px;padding:10px 14px;font-weight:700;font-size:13px;background:#fff}
+.btn-ghost{display:inline-flex;padding:8px 11px;border-radius:10px;border:1px dashed var(--line);font-weight:700;font-size:12px;color:var(--muted)}
+.chip{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:800;background:var(--ob);color:var(--od)}
+.status{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:99px}
+.st-ok{background:#DFF5E9;color:var(--ok)} .st-run{background:#FFF3D6;color:#8A6400} .st-cancel{background:#FBE0E0;color:var(--danger)} .st-info{background:var(--ob);color:var(--od)} .st-blue{background:#DFEBFB;color:#1A5FBD}
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+.kpi{flex:1;min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;box-shadow:var(--shadow)}
+.kpi b{display:block;font-size:22px}.kpi span{font-size:10.5px;color:var(--muted);font-weight:800}
+.trow{display:flex;align-items:center;gap:9px;padding:10px 4px;border-bottom:1px dashed var(--line);font-size:13.5px;flex-wrap:wrap}
+.trow:last-child{border-bottom:none}
+.st-seg{display:flex;gap:4px}
+.st-seg button{width:36px;height:36px;border-radius:10px;font-size:16px;border:1.5px solid var(--line);background:#fff}
+.st-seg button.sel-p{background:#DFF5E9;border-color:var(--ok)}
+.st-seg button.sel-r{background:#FBF3E4;border-color:var(--amber,#B4731D)}
+.st-seg button.sel-a{background:#FBE0E0;border-color:var(--danger)}
+.bar-wrap{display:flex;align-items:flex-end;gap:6px;height:82px;padding:8px 4px 0}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bar .fill{width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#F59B23,var(--od));min-height:3px}
+.bar small{font-size:9.5px;color:var(--muted);font-weight:700}
+.empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+.certs img{max-width:100%;border-radius:12px;border:1.5px solid var(--line);margin-top:6px}
+.two-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:680px){.two-cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><img src="/ecole-link-icon-192.png"><span>ÉCOLE LINK<small style="display:block;font-size:8.5px;letter-spacing:1px;color:var(--o)">PORTAIL ÉCOLE & PLATEFORME 🟠</small></span></div>
+  <span class="net-dot" id="net-dot"></span>
+</div>
+
+<!-- ═══════ CONNEXION (école / plateforme) ═══════ -->
+<div id="gate">
+  <div class="card" style="max-width:460px;margin:24px auto;padding:20px">
+    <div style="display:flex;gap:6px;margin-bottom:16px">
+      <button class="btn-line" id="g-tab-school" style="flex:1;color:var(--od);border-color:var(--o)" onclick="gateTab('school')">🏫 Je suis de l'école</button>
+      <button class="btn-line" id="g-tab-boss" style="flex:1" onclick="gateTab('boss')">👑 Plateforme</button>
+    </div>
+    <div id="g-school">
+      <h3 style="margin-bottom:6px">Portail de votre école</h3>
+      <p class="note" style="margin-bottom:12px">Directeur, surveillant, professeur principal — accès remis par la plateforme.</p>
+      <div style="margin-bottom:10px"><label>📞 Téléphone</label><input id="gs-tel" type="tel" maxlength="14"></div>
+      <div style="margin-bottom:14px"><label>🔑 Mot de passe</label><input id="gs-pw" type="password"></div>
+      <button class="btn-main" style="width:100%" onclick="schoolLogin()">🔓 Entrer dans mon école</button>
+    </div>
+    <div id="g-boss" class="hidden">
+      <h3 style="margin-bottom:6px">Direction de la plateforme (PDG)</h3>
+      <p class="note" style="margin-bottom:12px">Accès propriétaire — écoles, abonnements, journal.</p>
+      <div style="margin-bottom:14px"><label>🔑 Mot de passe maître</label><input id="gb-pw" type="password"></div>
+      <button class="btn-main" style="width:100%" onclick="bossLogin()">🔓 Ouvrir la plateforme</button>
+      <p class="note" style="margin-top:10px;text-align:center">Première utilisation ? <button style="color:var(--od);font-weight:800;text-decoration:underline" onclick="bossSetup()">⛏️ Initialiser le mot de passe maître</button></p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ TABLEAU DE BORD ═══════ -->
+<div id="board" class="hidden">
+  <div class="row" style="margin-bottom:12px">
+    <h1 id="hello" style="font-size:19px;flex:1"></h1>
+    <button class="btn-line" onclick="logout()">⏻ Sortir</button>
+  </div>
+
+  <!-- ───── STAFF : aujourd'hui ───── -->
+  <div class="panel card" id="p-stats">
+    <h3>👋 Aujourd'hui <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <div class="row" id="kpis"></div>
+      <p class="note" style="margin-top:8px">Les pointages se font classe par classe, ci-dessous. Chaque absence déclenche l'alerte chez les parents 🔔.</p>
+    </div>
+  </div>
+
+  <!-- ───── STAFF : pointage ───── -->
+  <div class="panel card" id="p-point">
+    <h3>✅ Pointage de ce matin <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <div class="row" style="margin-bottom:10px">
+        <select id="pt-class" style="flex:1;min-width:170px" onchange="loadPointage()"><option value="">— choisir la classe —</option></select>
+        <button class="btn-ghost" onclick="markAllPresent()">✅ Tous présents</button>
+      </div>
+      <div id="pt-rows"></div>
+      <div id="pt-actions" class="hidden" style="margin-top:12px">
+        <button class="btn-main" style="width:100%" onclick="savePointage()">📤 Enregistrer — et alerter les parents des absents</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── STAFF : annonces & convocations ───── -->
+  <div class="panel card" id="p-ann">
+    <h3>📣 Annonces & convocations <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <div class="card" style="background:var(--card2);margin-bottom:12px;padding:12px">
+        <h4 style="font-size:13px;margin-bottom:8px">✍️ Écrire aux parents</h4>
+        <div class="row" style="margin-bottom:8px">
+          <select id="an-cat" style="flex:1;min-width:120px">
+            <option value="info">ℹ️ Information</option>
+            <option value="reunion">📅 Convocation (réunion)</option>
+            <option value="urgent">🚨 Urgent</option>
+          </select>
+          <select id="an-target" style="flex:1;min-width:140px"><option value="">🏫 Toute l'école</option></select>
+        </div>
+        <div id="an-date-row" class="hidden" style="margin-bottom:8px"><label>🕐 Date & heure de la réunion</label><input id="an-date" type="datetime-local"></div>
+        <div style="margin-bottom:8px"><input id="an-title" placeholder="Titre (ex : Réunion des parents CP2)"></div>
+        <div style="margin-bottom:8px"><textarea id="an-body" rows="3" placeholder="Votre message aux parents…"></textarea></div>
+        <button class="btn-main" onclick="sendAnnounce()">📣 Envoyer (avec notification chez les parents)</button>
+      </div>
+      <div id="ann-history"></div>
+    </div>
+  </div>
+
+  <!-- ───── STAFF : classes & élèves ───── -->
+  <div class="panel card" id="p-classes">
+    <h3>🏫 Classes & élèves <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <div class="two-cols">
+        <div>
+          <div class="card" style="background:var(--card2);padding:12px;margin-bottom:10px">
+            <h4 style="font-size:13px;margin-bottom:8px">➕ Nouvelle classe <span class="note">(directeur)</span></h4>
+            <div class="row"><input id="cl-nom" placeholder="Ex : CP2, CM1…"><button class="btn-main" style="flex:none" onclick="createClass()">Créer</button></div>
+          </div>
+          <div class="card" style="background:var(--card2);padding:12px">
+            <h4 style="font-size:13px;margin-bottom:8px">🧒 Inscrire un élève</h4>
+            <div class="grid2" style="margin-bottom:8px">
+              <input id="st-prenom" placeholder="Prénom *"><input id="st-nom" placeholder="Nom *">
+            </div>
+            <div class="row" style="margin-bottom:8px">
+              <select id="st-sex" style="flex:none;width:86px"><option value="">Sexe</option><option value="F">F</option><option value="M">M</option></select>
+              <select id="st-class" style="flex:1"></select>
+            </div>
+            <button class="btn-main" style="width:100%" onclick="createStudent()">🏷️ Créer + obtenir le CODE famille</button>
+          </div>
+        </div>
+        <div>
+          <div class="row" style="margin-bottom:8px"><select id="el-class" style="flex:1" onchange="loadStudents()"><option value="">👀 Toutes les classes</option></select></div>
+          <div id="el-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── STAFF : absences reçues ───── -->
+  <div class="panel card" id="p-abs">
+    <h3>🤒 Absences signalées par les parents <span class="fold-ic">▾</span></h3>
+    <div class="body"><div id="abs-list"></div></div>
+  </div>
+
+  <!-- ───── STAFF : tendance ───── -->
+  <div class="panel card" id="p-stats7">
+    <h3>📊 Absentéisme — 7 jours <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <div class="bar-wrap" id="bars"></div>
+      <p class="note" style="margin-top:6px">% d'absents parmi les élèves pointés, jour par jour.</p>
+    </div>
+  </div>
+
+  <!-- ══════════ PDG ══════════ -->
+  <div class="panel card hidden" id="p-boss-schools">
+    <h3>🏫 Écoles de la plateforme <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <div class="row" style="margin-bottom:10px"><input id="bs-nom" placeholder="Nom de la nouvelle école *" style="flex:1"><button class="btn-main" style="flex:none" onclick="createSchool()">🏷️ Ajouter l'école</button></div>
+      <div id="boss-schools"></div>
+    </div>
+  </div>
+  <div class="panel card hidden" id="p-boss-staff">
+    <h3>🧑‍🏫 Comptes guidés (directeur / personnel) <span class="fold-ic">▾</span></h3>
+    <div class="body">
+      <p class="note" style="margin-bottom:8px">Créez l'accès de la direction : le mot de passe est généré et remis EN MAIN PROPRE (affiché une fois).</p>
+      <div class="grid2" style="margin-bottom:8px">
+        <div><label>École</label><select id="bst-school"></select></div>
+        <div><label>Rôle</label><select id="bst-role"><option value="directeur">👔 Directeur</option><option value="surveillant">🧢 Surveillant</option><option value="professeur">📚 Professeur principal</option></select></div>
+      </div>
+      <div class="grid2" style="margin-bottom:10px">
+        <input id="bst-nom" placeholder="Nom complet *"><input id="bst-tel" placeholder="📞 Téléphone *">
+      </div>
+      <button class="btn-main" onclick="createStaff()">🤝 Créer l'accès</button>
+      <div id="boss-staff" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div class="panel card hidden" id="p-boss-pay">
+    <h3>💳 Abonnements à valider <span class="fold-ic">▾</span></h3>
+    <div class="body"><div id="boss-pay"></div></div>
+  </div>
+  <div class="panel card hidden" id="p-boss-stats">
+    <h3>📊 Vue globale plateforme <span class="fold-ic">▾</span></h3>
+    <div class="body"><div class="row" id="boss-kpis"></div></div>
+  </div>
+  <div class="panel card hidden" id="p-boss-audit">
+    <h3>📜 Journal de la plateforme <span class="fold-ic">▾</span></h3>
+    <div class="body"><div id="boss-audit"></div></div>
+  </div>
+</div>
+
+<div id="toast" style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2B2417;color:#fff;padding:11px 18px;border-radius:99px;font-size:13px;font-weight:700;z-index:99;opacity:0;transition:opacity .2s;max-width:88%;text-align:center"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+function toast(m){const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(t._to);t._to=setTimeout(()=>t.style.opacity=0,2800);}
+let who=null;            // {role:'staff'|'boss', nom, school?, role?}
+let classes=[], studentsCache=[], meData=null;
+let ptSel={}, ptClassId=null;
+
+/* ─── volets pliables (mémoire par appareil) ─── */
+(function(){
+  const KEY='el_fold_v1';
+  const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return{}}};
+  const save=m=>{try{localStorage.setItem(KEY,JSON.stringify(m))}catch(e){}};
+  const FOLDED=['classes','abs','stats7','audit','stats'];
+  function refresh(){
+    const mem=load();
+    document.querySelectorAll('.panel').forEach((p,i)=>{
+      const h3=p.querySelector('h3'); if(!h3) return;
+      const k=p.id||('p'+i);
+      let ic=h3.querySelector('.fold-ic');
+      if(!ic){ ic=document.createElement('span'); ic.className='fold-ic'; h3.appendChild(ic);
+        h3.addEventListener('click',()=>{ const f=!p.classList.contains('folded'); p.classList.toggle('folded',f); const m=load(); m[k]=f; save(m); ic.textContent=f?'▸':'▾'; });
+      }
+      const folded=(k in mem)?mem[k]:FOLDED.some(f=>k.toLowerCase().includes(f));
+      p.classList.toggle('folded',folded); ic.textContent=folded?'▸':'▾';
+    });
+  }
+  window.addEventListener('load',refresh);
+})();
+
+/* ─── connexion ─── */
+function gateTab(t){ $('#g-tab-school').style.opacity=t==='school'?1:.55; $('#g-tab-boss').style.opacity=t==='boss'?1:.55; $('#g-school').classList.toggle('hidden',t!=='school'); $('#g-boss').classList.toggle('hidden',t!=='boss'); }
+async function schoolLogin(){
+  const tel=$('#gs-tel').value.replace(/\D/g,''), pw=$('#gs-pw').value;
+  if(tel.length<8||!pw) return toast('Téléphone + mot de passe requis');
+  const r=await fetch('/api/school/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tel,password:pw})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'accès refusé'));
+  who={role:'staff',nom:d.nom,school:d.school,srole:d.role};
+  enter();
+}
+async function bossLogin(){
+  const pw=$('#gb-pw').value;
+  if(!pw) return toast('Mot de passe requis');
+  const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'accès refusé'));
+  who={role:'boss',nom:'Maître'};
+  enter();
+}
+async function bossSetup(){
+  const pw=prompt('⛏️ Choisissez le MOT DE PASSE MAÎTRE (8+ caractères, lettre + chiffre)'); if(!pw) return;
+  const r=await fetch('/api/admin/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'déjà initialisé — connectez-vous'));
+  who={role:'boss',nom:'Maître'}; toast('👑 Bienvenue, Directeur.'); enter();
+}
+async function logout(){ await fetch('/api/logout',{method:'POST'}); location.reload(); }
+
+/* ─── entrée ─── */
+function enter(){
+  $('#gate').classList.add('hidden'); $('#board').classList.remove('hidden');
+  $('#net-dot').classList.add('on');
+  const staffPanels=['p-stats','p-point','p-ann','p-classes','p-abs','p-stats7'];
+  const bossPanels=['p-boss-schools','p-boss-staff','p-boss-pay','p-boss-stats','p-boss-audit'];
+  staffPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='staff'));
+  bossPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='boss'));
+  if(who.role==='staff'){ $('#hello').textContent='🏫 '+who.school+' — '+who.nom+' ('+who.srole+')'; staffBoot(); }
+  else{ $('#hello').textContent='👑 ÉCOLE LINK — votre plateforme'; bossBoot(); }
+}
+
+/* ══════ STAFF ══════ */
+async function staffBoot(){await Promise.all([loadMe(), loadAnnouncements(), loadAbsences()]); loadStudents();}
+async function loadMe(){
+  const r=await fetch('/api/school/me'); if(!r.ok) return;
+  meData=await r.json(); classes=meData.classes||[];
+  const t=meData.today||{};
+  $('#kpis').innerHTML=
+    `<div class="kpi"><b style="color:var(--ok)">${t.presents||0}</b><span>présents</span></div>
+     <div class="kpi"><b style="color:var(--danger)">${t.absents||0}</b><span>absents</span></div>
+     <div class="kpi"><b style="color:#B4731D">${t.retards||0}</b><span>retards</span></div>
+     <div class="kpi"><b>${t.nonPointes||0}</b><span>non pointés</span></div>`;
+  const opts=classes.map(c=>`<option value="${c.id}">${c.nom} (${c.effectif})${c.pointe?' ✓':''}</option>`).join('');
+  $('#pt-class').innerHTML='<option value="">— choisir la classe —</option>'+opts;
+  $('#st-class').innerHTML=classes.map(c=>`<option value="${c.id}">${c.nom}</option>`).join('')||'<option value="">— créez d\'abord une classe —</option>';
+  $('#an-target').innerHTML='<option value="">🏫 Toute l\'école</option>'+classes.map(c=>`<option value="${c.id}">🎒 Classe ${c.nom}</option>`).join('');
+  const bars=(meData.stats7||[]).map(d=>`<div class="bar"><div class="fill" style="height:${d.taux==null?3:Math.max(3, d.taux)}%"></div><small>${d.date}</small><small>${d.taux==null?'—':d.taux+'%'}</small></div>`).join('');
+  $('#bars').innerHTML=bars||'<p class="note">Pas encore de pointage — les barres pousseront dès demain.</p>';
+}
+async function createClass(){
+  const nom=$('#cl-nom').value.trim(); if(!nom) return toast('Nom de classe ?');
+  const r=await fetch('/api/school/classes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  $('#cl-nom').value=''; toast('🏫 Classe créée ✓'); loadMe();
+}
+async function createStudent(){
+  const prenom=$('#st-prenom').value.trim(), nom=$('#st-nom').value.trim(), classId=$('#st-class').value;
+  if(prenom.length<2||nom.length<2||!classId) return toast('Prénom + nom + classe requis');
+  const r=await fetch('/api/school/students',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prenom,nom,sex:$('#st-sex').value,classId})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  alert('🤝 ÉLÈVE INSCRIT — remettez ce CODE FAMILLE aux parents (WhatsApp ou papier) :\n\n    🔑 '+d.code+'\n\nDans l\'app ÉCOLE LINK : « Compte → Lier un enfant ».\nLe code fonctionne UNE SEULE FOIS, puis s\'efface.');
+  $('#st-prenom').value=''; $('#st-nom').value='';
+  loadMe(); loadStudents();
+}
+async function loadStudents(){
+  const cid=$('#el-class').value;
+  const r=await fetch('/api/school/students'+(cid?'?classId='+cid:''));
+  if(!r.ok) return;
+  studentsCache=await r.json();
+  $('#el-class').innerHTML='<option value="">👀 Toutes les classes</option>'+classes.map(c=>`<option value="${c.id}" ${c.id===cid?'selected':''}>${c.nom}</option>`).join('');
+  $('#el-list').innerHTML=studentsCache.length?studentsCache.map(s=>`
+    <div class="trow">
+      <span style="font-size:18px">${s.lie?'✅':'⏳'}</span>
+      <span style="flex:1"><b>${s.prenom} ${s.nom}</b> <span class="note">${s.classe}</span></span>
+      ${s.lie
+        ? '<span class="status st-ok">famille liée</span>'
+        : (s.code ? `<button class="btn-ghost" onclick="copy('${s.code}')">🔑 ${s.code} — copier</button>` : `<button class="btn-ghost" onclick="regen('${s.id}')">🔁 nouveau code</button>`)}
+    </div>`).join(''):'<p class="empty">Aucun élève — inscrivez-en à gauche ⬅️</p>';
+}
+function copy(c){ (navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast('📋 Code copié ✓')).catch(()=>prompt('Copiez ce code :',c)); }
+async function regen(id){
+  const r=await fetch('/api/school/students/regen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({studentId:id})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ impossible');
+  alert('🔁 NOUVEAU code famille : '+d.code+'\n\nL\'ancien ne marche plus — remettez celui-ci.');
+  loadStudents();
+}
+
+/* ─── pointage ─── */
+async function loadPointage(){
+  ptClassId=$('#pt-class').value; ptSel={};
+  const box=$('#pt-rows'); if(!ptClassId){box.innerHTML='';$('#pt-actions').classList.add('hidden');return;}
+  const studs = studentsCache.some(s=>s.classId===ptClassId) ? studentsCache.filter(s=>s.classId===ptClassId)
+    : await (await fetch('/api/school/students?classId='+ptClassId)).json();
+  try{
+    const r2=await fetch('/api/school/attendance?classId='+ptClassId);
+    const exist=await r2.json();
+    if(exist && exist.rows) exist.rows.forEach(r=>ptSel[r.studentId]=r.status);
+  }catch(e){}
+  box.innerHTML=studs.length?studs.map(s=>{
+    const cur=ptSel[s.id]||'present'; if(!(s.id in ptSel)) ptSel[s.id]='present';
+    return `<div class="trow">
+      <span style="flex:1"><b>${s.prenom} ${s.nom}</b></span>
+      <span class="st-seg">
+        <button class="${cur==='present'?'sel-p':''}" title="Présent" onclick="ptSet('${s.id}','present',this)">✅</button>
+        <button class="${cur==='retard'?'sel-r':''}" title="Retard" onclick="ptSet('${s.id}','retard',this)">⏰</button>
+        <button class="${cur==='absent'?'sel-a':''}" title="Absent" onclick="ptSet('${s.id}','absent',this)">🚨</button>
+      </span>
+    </div>`;
+  }).join(''):'<p class="empty">Aucun élève dans cette classe — inscrivez-en d\'abord (panneau « Classes & élèves »).</p>';
+  $('#pt-actions').classList.toggle('hidden', !studs.length);
+}
+function ptSet(id, st, btn){ ptSel[id]=st; const seg=btn.closest('.st-seg'); seg.querySelectorAll('button').forEach(b=>b.className=''); btn.className = st==='present'?'sel-p': st==='retard'?'sel-r':'sel-a'; }
+function markAllPresent(){ Object.keys(ptSel).forEach(k=>ptSel[k]='present'); loadPointageRedone(); toast('✅ Tous présents — prêt à envoyer'); }
+function loadPointageRedone(){ /* re-render with current sel without refetch */ const sid=ptClassId; $$('#pt-rows .trow').forEach(()=>{}); loadPointage(); }
+async function savePointage(){
+  const ids=Object.keys(ptSel); if(!ids.length) return;
+  if(!confirm('📤 Enregistrer le pointage ?\nLes parents des ABSENTS recevront l\'alerte aussitôt.')) return;
+  const r=await fetch('/api/school/attendance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({classId:ptClassId,rows:ids.map(id=>({studentId:id,status:ptSel[id]}))})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  toast('✅ Pointage enregistré — parents alertés 🔔');
+  loadMe();
+}
+
+/* ─── annonces ─── */
+$('#an-cat') && $('#an-cat').addEventListener('change',()=>{ $('#an-date-row').classList.toggle('hidden', $('#an-cat').value!=='reunion'); });
+async function sendAnnounce(){
+  const t=$('#an-title').value.trim(); if(!t) return toast('Un titre ?');
+  const body={title:t, body:$('#an-body').value.trim(), cat:$('#an-cat').value, targetClassId:$('#an-target').value||null};
+  if(body.cat==='reunion' && $('#an-date').value) body.reunionAt=$('#an-date').value.slice(0,10);
+  const r=await fetch('/api/school/announce',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  toast('📣 Envoyé à '+d.cibles+' famille(s) 🔔');
+  $('#an-title').value=''; $('#an-body').value='';
+  loadAnnouncements();
+}
+async function loadAnnouncements(){
+  const r=await fetch('/api/school/announce'); if(!r.ok) return;
+  const rows=await r.json();
+  $('#ann-history').innerHTML=rows.length?rows.map(a=>{
+    const c=a.cat==='urgent'?'<span class="status st-cancel">🚨 URGENT</span>':a.cat==='reunion'?'<span class="status st-blue">📅 CONVOCATION</span>':'<span class="status st-info">ℹ️ INFO</span>';
+    return `<div class="trow" style="align-items:flex-start">
+      <span style="flex:1">${c} <b>${a.title}</b><br><span class="note">${(a.body||'').slice(0,110)}${a.reunionAt?' · 🕐 '+a.reunionAt:''}</span></span>
+      <span style="flex:none;text-align:right;font-size:11px" class="note">📨 ${a.stats.cible}<br>👁️ ${a.stats.reads} vues<br>✅ ${a.stats.oui} · ❌ ${a.stats.non}</span>
+    </div>`;
+  }).join(''):'<p class="empty">Aucune annonce envoyée.</p>';
+}
+
+/* ─── absences reçues ─── */
+async function loadAbsences(){
+  const r=await fetch('/api/school/absences'); if(!r.ok) return;
+  const rows=await r.json();
+  $('#abs-list').innerHTML=rows.length?rows.map(x=>`
+    <div class="trow" style="align-items:flex-start">
+      <span style="font-size:18px">${x.kind==='maladie'?'🤒':x.kind==='famille'?'👨‍👩‍👧':x.kind==='voyage'?'✈️':'📝'}</span>
+      <span style="flex:1"><b>${x.enfant}</b> — absent(e) le ${x.from}${x.to!==x.from?' → '+x.to:''}<br>
+        <span class="note">${x.parent||'Parent'} · motif : ${x.kind}${x.note?' — '+x.note:''}</span>
+        ${x.certPhoto?`<span class="certs"><img src="${x.certPhoto}"></span>`:''}
+      </span>
+      ${x.status==='validee'?'<span class="status st-ok">✓ validée</span>':`<button class="btn-ghost" onclick="validateAbs('${x.id}')">✅ Prendre en compte</button>`}
+    </div>`).join(''):'<p class="empty">Aucune absence signalée — tout roule ☀️</p>';
+}
+async function validateAbs(id){
+  const r=await fetch('/api/school/absences/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  if(r.ok){ toast('✅ Prise en compte — le parent est prévenu'); loadAbsences(); }
+}
+
+/* ══════ PDG ══════ */
+async function bossBoot(){ await loadBossState(); }
+async function loadBossState(){
+  const r=await fetch('/api/admin/state'); if(!r.ok) return toast('⏳ Connexion expirée — relancez');
+  const d=await r.json();
+  $('#boss-kpis').innerHTML=
+    `<div class="kpi"><b>${d.schools.length}</b><span>🏫 écoles</span></div>
+     <div class="kpi"><b>${d.students}</b><span>🧒 élèves</span></div>
+     <div class="kpi"><b>${d.parents}</b><span>👨‍👩‍👧 parents</span></div>
+     <div class="kpi"><b style="color:var(--ok)">${d.subActifs}</b><span>🧡 abonnés actifs</span></div>
+     <div class="kpi"><b>${d.essais}</b><span>🎁 essais en cours</span></div>
+     <div class="kpi"><b style="color:var(--od)">${(d.recettes||0).toLocaleString('fr-FR')}</b><span>💰 recettes F</span></div>`;
+  $('#bst-school').innerHTML=d.schools.map(s=>`<option value="${s.id}">${s.nom}</option>`).join('')||'<option value="">— créez d\'abord une école —</option>';
+  $('#boss-schools').innerHTML=d.schools.length?d.schools.map(s=>`
+    <div class="trow"><span style="font-size:18px">🏫</span><span style="flex:1"><b>${s.nom}</b><br><span class="note">${s.classes} classe(s) · ${s.effectif} élève(s) · ${s.staff} accès</span></span><span class="chip">depuis ${s.createdAt.slice(0,10)}</span></div>`).join(''):'<p class="empty">Aucune école — ajoutez la première ci-dessus ⬆️ puis créez son directeur (panneau suivant).</p>';
+  $('#boss-staff').innerHTML=d.staff.length?d.staff.map(s=>`<div class="trow"><span style="font-size:17px">${s.role==='directeur'?'👔':s.role==='surveillant'?'🧢':'📚'}</span><span style="flex:1"><b>${s.nom}</b> <span class="note">${s.tel} · ${s.role}</span></span></div>`).join(''):'';
+  $('#boss-pay').innerHTML=d.paymentsPending.length?d.paymentsPending.map(x=>`
+    <div class="trow">
+      <span style="font-size:18px">💳</span>
+      <span style="flex:1"><b>${x.parent}</b> <span class="note">${x.tel}</span><br><span class="note">${x.amount.toLocaleString('fr-FR')} F · ${x.method} · réf. <b>${x.ref}</b> · ${x.at.slice(0,16).replace('T',' ')}</span></span>
+      <button class="btn-ghost" style="color:var(--ok)" onclick="payAct('${x.id}','validate')">✅ Valider 1 an</button>
+      <button class="btn-ghost" style="color:var(--danger)" onclick="payAct('${x.id}','reject')">✗</button>
+    </div>`).join(''):'<p class="empty">Aucun paiement en attente ☕</p>';
+  $('#boss-audit').innerHTML=d.audit.length?d.audit.map(a=>`<div class="trow" style="font-size:12.5px"><span class="note" style="flex:none">${a.at.slice(5,16).replace('T',' ')}</span><span style="flex:1"><b>${a.kind}</b> — ${JSON.stringify(a.data).slice(0,90)}</span></div>`).join(''):'<p class="empty">Journal vierge.</p>';
+}
+async function createSchool(){
+  const nom=$('#bs-nom').value.trim(); if(!nom) return toast('Nom de l\'école ?');
+  const r=await fetch('/api/admin/schools',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  $('#bs-nom').value=''; toast('🏫 École ajoutée ✓ — créez son directeur ↓'); loadBossState();
+}
+async function createStaff(){
+  const schoolId=$('#bst-school').value, nom=$('#bst-nom').value.trim(), tel=$('#bst-tel').value.replace(/\D/g,''), role=$('#bst-role').value;
+  if(!schoolId||nom.length<2||tel.length<8) return toast('École + nom + téléphone requis');
+  const r=await fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId,nom,tel,role})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
+  alert('🤝 ACCÈS CRÉÉ — remettez en main propre :\n\n    École : '+d.school+'\n    Nom : '+d.nom+'\n    Téléphone : '+d.tel+'\n    Mot de passe : '+d.password+(d.passwordGenere?' (généré)':'')+'\n\nIl se connecte dans le portail → onglet « Je suis de l\'école ».');
+  $('#bst-nom').value=''; $('#bst-tel').value=''; loadBossState();
+}
+async function payAct(id, act){
+  const ok=confirm(act==='validate'?'✅ Valider et ouvrir 1 an d\'abonnement pour cette famille ?':'✗ Rejeter cette preuve ?');
+  if(!ok) return;
+  const r=await fetch('/api/admin/payments/'+act,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  if(r.ok){ toast(act==='validate'?'🎉 Abonnement ouvert — parent prévenu':'✗ Preuve rejetée — parent prévenu'); loadBossState(); }
+}
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3f7f5c72f41e191',t:'MTc5MDE0OTg0Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
