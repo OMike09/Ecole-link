@@ -841,7 +841,20 @@ const server = http.createServer(async (req, res) => {
     payDest: (db.config && db.config.hide) ? { hide: true } : ((db.config && db.config.payDest) || {}),
     hidePay: !!(db.config && db.config.payDest && db.config.payDest.hide)
   });
-  if (p === '/api/annonce') return sendJson(res, 200, { ok: true, version: APP_VERSION, annonce: db.annonce || null });
+  if (p === '/api/annonce') {
+    if (typeof quizRevealIfDue === 'function') try { quizRevealIfDue(); } catch (e) {}
+    const a = db.annonce || null;
+    if (a && a.type === 'quiz' && a.countdownEndsAt && !a.countdownRevealed && Date.now() >= new Date(a.countdownEndsAt).getTime()) {
+      const n = Math.max(1, parseInt(a.pendingN, 10) || 1);
+      const pool = (a.stagePool && a.stagePool.length) ? a.stagePool.slice() : (db.quizAnswers || []).filter(x => x.ok).map(x => x.nom);
+      const copy = pool.slice();
+      for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = copy[i]; copy[i] = copy[j]; copy[j] = t; }
+      a.countdownRevealed = true; a.closed = true; a.winners = copy.slice(0, Math.min(n, copy.length));
+      a.rounds = a.rounds || []; a.rounds.push({ at: nowISO(), n, winners: a.winners, seconds: a.countdownSeconds || 0 });
+      a.stagePool = a.winners; saveDb();
+    }
+    return sendJson(res, 200, { ok: true, version: APP_VERSION, annonce: db.annonce || null, now: Date.now() });
+  }
 
   /* --- 🤝 Liaison d'un compte pro créé à la main par l'équipe (code à usage unique) --- */
   if (p === '/api/agents/claim' && req.method === 'POST') {
@@ -862,6 +875,14 @@ const server = http.createServer(async (req, res) => {
     (ag.hist = ag.hist || []).push({ at: Date.now(), by: ag.nom, ev: '📱 Compte lié au téléphone du professionnel' });
     saveDb();
     auditLog('pro_lie', { pro: ag.nom, tel });
+    return sendJson(res, 200, { ok: true, agentId: ag.id, nom: ag.nom });
+  }
+  if (p === '/api/agents/login' && req.method === 'POST') {
+    const b = await readBody(req);
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    const ag = db.agents.find(a => String(a.tel1 || a.tel || '').replace(/\D/g, '') === tel && (a.status || 'approved') === 'approved' && !a.blocked);
+    if (!ag || !ag.passHash || hashPassword(ag.salt || '', b.password || '') !== ag.passHash)
+      return sendJson(res, 401, { error: 'Téléphone ou mot de passe incorrect' });
     return sendJson(res, 200, { ok: true, agentId: ag.id, nom: ag.nom });
   }
 
@@ -996,7 +1017,8 @@ const server = http.createServer(async (req, res) => {
     db.annonce = { id: uid('AN'), message: msg, type, at: nowISO(), par: act(req),
       question: type === 'quiz' ? String(b.question || '').trim().slice(0, 180) : '',
       choices: type === 'quiz' ? choices : [],
-      good: type === 'quiz' ? Math.max(0, Math.min(3, parseInt(b.good, 10) || 0)) : 0 };
+      good: type === 'quiz' ? Math.max(0, Math.min(3, parseInt(b.good, 10) || 0)) : 0,
+      closed: false, winners: [] };
     db.quizAnswers = [];
     saveDb();
     auditLog('annonce_publiee', { type, par: act(req) });
@@ -1045,15 +1067,17 @@ const server = http.createServer(async (req, res) => {
     if (tel1.length < 8) return sendJson(res, 400, { error: 'Numéro de téléphone invalide' });
     if (db.agents.find(a => String(a.tel1 || '').replace(/\D/g, '') === tel1)) return sendJson(res, 409, { error: 'Ce numéro est déjà inscrit chez les professionnels' });
     const pin = String(Math.floor(100000 + Math.random() * 900000));
+    const pw = String(b.password || '') || ('Klean-' + Math.floor(1000 + Math.random() * 9000) + '!');
+    const salt = crypto.randomBytes(12).toString('hex');
     const services = Array.isArray(b.services) && b.services.length ? b.services : [b.service || 'maison'];
-    const na = { id: uid('AG'), nom: (prenom + ' ' + nom).trim(), prenom, tel1, quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), adresse: String(b.adresse || '').trim(),
+    const na = { id: uid('AG'), nom: (prenom + ' ' + nom).trim(), prenom, tel1, tel: tel1, salt, passHash: hashPassword(salt, pw), quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), adresse: String(b.adresse || '').trim(),
       naissance: '', experience: b.experience || 0, pieceType: '', pieceNum: '', tel2: '', urgenceNom: '', urgenceTel: '', ref1Nom: '', ref1Tel: '',
       services, niveau: '', photo: '', pushSubs: [], hist: [{ at: Date.now(), by: act(req), ev: '🏗️ Compte créé à la main par l’équipe — vérification immédiate' }],
       status: 'approved', approvedAt: nowISO(), createdAt: nowISO(), createdBy: act(req), createdById: actorId(req), createdByGestId: fieldIdentity(req) ? fieldIdentity(req).gestId : ((hqIdentity(req)||{}).role==='gest' ? hqIdentity(req).id : null), claimPin: pin, online: false, pos: null, kind: 'pro' };
     db.agents.push(na); saveDb();
     auditLog('pro_cree_hq', { pro: na.nom, tel: tel1, par: act(req) });
     emitAdmin('agent', '🏗️ ' + act(req) + ' a créé le professionnel ' + na.nom + ' — code de liaison remis en main');
-    return sendJson(res, 201, { ok: true, id: na.id, nom: na.nom, tel: tel1, pin });
+    return sendJson(res, 201, { ok: true, id: na.id, nom: na.nom, tel: tel1, pin, password: pw });
   }
 
   const mRea = p.match(/^\/api\/admin\/missions\/(.+)\/reassign$/);
@@ -1110,7 +1134,7 @@ const server = http.createServer(async (req, res) => {
     if (!ownsRecord(req, cible)) return sendJson(res, 403, { error: 'Ce compte n’est pas le vôtre' });
     const muteKey = b.role + ':' + b.uid;
     if ((db.mutedChats || []).some(m => m.key === muteKey)) return sendJson(res, 403, { error: 'Conversation interrompue par le PDG' });
-    const sender = act(req);
+    const sender = isPdg(req) ? 'PDG' : act(req);
     db.supportMsgs.push({ id: uid('SR'), role: b.role, uid: b.uid, nom: cible.nom, from: 'hq', par: sender, text, at: nowISO(), readHQ: true, readUser: false });
     saveDb();
     if (b.role === 'pro') {
@@ -1311,16 +1335,96 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
+  function shuffleCopy(arr) {
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = copy[i]; copy[i] = copy[j]; copy[j] = t; }
+    return copy;
+  }
+  function quizRevealIfDue() {
+    const a = db.annonce;
+    if (!a || a.type !== 'quiz' || !a.countdownEndsAt || a.countdownRevealed) return a;
+    if (Date.now() < new Date(a.countdownEndsAt).getTime()) return a;
+    const n = Math.max(1, parseInt(a.pendingN, 10) || 1);
+    const pool = (a.stagePool && a.stagePool.length) ? a.stagePool.slice() : (db.quizAnswers || []).filter(x => x.ok).map(x => x.nom);
+    const winners = shuffleCopy(pool).slice(0, Math.min(n, pool.length));
+    a.countdownRevealed = true;
+    a.closed = true;
+    a.winners = winners;
+    a.rounds = a.rounds || [];
+    a.rounds.push({ at: nowISO(), n, winners, seconds: a.countdownSeconds || 0 });
+    a.stagePool = winners;
+    saveDb();
+    return a;
+  }
+
   if (p === '/api/quiz/answer' && req.method === 'POST') {
     const b = await readBody(req);
     const a = db.annonce;
     if (!a || a.type !== 'quiz') return sendJson(res, 400, { error: 'Pas de quiz en cours' });
+    if (a.closed || a.countdownEndsAt) return sendJson(res, 409, { error: 'Quiz terminé — le décompte a commencé', winners: a.winners || [] });
+    const who = String(b.nom || b.deviceId || ('anon-' + (req.socket.remoteAddress || ''))).slice(0, 60);
+    db.quizAnswers = db.quizAnswers || [];
+    if (db.quizAnswers.some(x => x.who === who)) return sendJson(res, 200, { ok: false, message: 'Vous avez déjà répondu.' });
     const choice = parseInt(b.choice, 10);
     const ok = choice === a.good;
-    db.quizAnswers = db.quizAnswers || [];
-    db.quizAnswers.push({ at: nowISO(), nom: String(b.nom || '').slice(0, 40), choice, ok });
+    db.quizAnswers.push({ at: nowISO(), nom: String(b.nom || 'Anonyme').slice(0, 40), who, choice, ok });
     saveDb();
-    return sendJson(res, 200, { ok, message: ok ? 'Bonne réponse !' : 'Mauvaise réponse, retentez.' });
+    return sendJson(res, 200, { ok, message: ok ? 'Bonne réponse ! Vous êtes dans le tirage.' : 'Mauvaise réponse.' });
+  }
+  if (p === '/api/admin/quiz' && req.method === 'GET') {
+    quizRevealIfDue();
+    const a = db.annonce;
+    const ans = db.quizAnswers || [];
+    const goods = ans.filter(x => x.ok);
+    return sendJson(res, 200, {
+      active: !!(a && a.type === 'quiz'), closed: !!(a && a.closed),
+      question: a && a.question, nTotal: ans.length, nOk: goods.length,
+      goods: goods.map(x => x.nom), winners: (a && a.winners) || [],
+      countdownEndsAt: a && a.countdownEndsAt, countdownRevealed: !!(a && a.countdownRevealed),
+      pendingN: a && a.pendingN, rounds: (a && a.rounds) || [], stagePool: (a && a.stagePool) || []
+    });
+  }
+  if (p === '/api/admin/quiz/stop' && req.method === 'POST') {
+    if (!db.annonce || db.annonce.type !== 'quiz') return sendJson(res, 400, { error: 'Pas de quiz' });
+    db.annonce.closed = true; saveDb();
+    return sendJson(res, 200, { ok: true, nOk: (db.quizAnswers || []).filter(x => x.ok).length });
+  }
+  if (p === '/api/admin/quiz/countdown' && req.method === 'POST') {
+    if (!db.annonce || db.annonce.type !== 'quiz') return sendJson(res, 400, { error: 'Pas de quiz' });
+    const b = await readBody(req);
+    const seconds = Math.max(5, Math.min(3600, parseInt(b.seconds, 10) || 30));
+    const n = Math.max(1, Math.min(50, parseInt(b.n, 10) || 1));
+    const a = db.annonce;
+    const pool = (a.stagePool && a.stagePool.length && a.countdownRevealed)
+      ? a.stagePool.slice()
+      : (db.quizAnswers || []).filter(x => x.ok).map(x => x.nom);
+    if (!pool.length) return sendJson(res, 400, { error: 'Aucune bonne réponse pour tirer' });
+    if (n > pool.length) return sendJson(res, 400, { error: 'Demandez au plus ' + pool.length + ' gagnant(s)' });
+    a.closed = true;
+    a.countdownEndsAt = new Date(Date.now() + seconds * 1000).toISOString();
+    a.countdownSeconds = seconds;
+    a.countdownRevealed = false;
+    a.pendingN = n;
+    a.winners = [];
+    a.stagePool = pool;
+    saveDb();
+    return sendJson(res, 200, { ok: true, countdownEndsAt: a.countdownEndsAt, seconds, n, pool: pool.length });
+  }
+  if (p === '/api/admin/quiz/reveal' && req.method === 'POST') {
+    if (!db.annonce || db.annonce.type !== 'quiz') return sendJson(res, 400, { error: 'Pas de quiz' });
+    db.annonce.countdownEndsAt = new Date().toISOString();
+    quizRevealIfDue();
+    return sendJson(res, 200, { ok: true, winners: db.annonce.winners || [] });
+  }
+  if (p === '/api/admin/quiz/draw' && req.method === 'POST') {
+    if (!db.annonce || db.annonce.type !== 'quiz') return sendJson(res, 400, { error: 'Pas de quiz' });
+    const b = await readBody(req);
+    db.annonce.closed = true;
+    db.annonce.countdownEndsAt = new Date().toISOString();
+    db.annonce.pendingN = Math.max(1, Math.min(50, parseInt(b.n, 10) || 1));
+    db.annonce.countdownRevealed = false;
+    quizRevealIfDue();
+    return sendJson(res, 200, { ok: true, winners: db.annonce.winners || [], nOk: (db.quizAnswers || []).filter(x => x.ok).length });
   }
 
   if (p === '/api/field/login' && req.method === 'POST') {

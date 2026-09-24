@@ -2350,7 +2350,46 @@ function showInstallFab(){
     }, 9000);
   }
 })();
-(function loadAffiche(){
+let _quizPaint='';
+function fmtCd(ends){
+  const left=Math.max(0, Math.ceil((new Date(ends).getTime()-Date.now())/1000));
+  const m=Math.floor(left/60), s=String(left%60).padStart(2,'0');
+  return {left, txt: m+':'+s};
+}
+function paintQuiz(a){
+  const qb=document.getElementById('quiz-box'); if(!qb||!a||a.type!=='quiz'||!a.question) return;
+  const counting=a.countdownEndsAt && !a.countdownRevealed;
+  const shown=a.countdownRevealed && a.winners && a.winners.length;
+  const key=(a.id||'')+'|'+(counting?'cd':'')+'|'+(shown?'w':'')+'|'+(a.closed?'c':'')+'|'+(a.winners||[]).join(',');
+  if(counting){
+    const {txt,left}=fmtCd(a.countdownEndsAt);
+    const n=a.pendingN||1;
+    if(_quizPaint!==key){
+      qb.innerHTML='<b style="font-size:15px">🏆 Quiz KLEAN</b><p style="margin:8px 0 4px;font-size:14px;font-weight:700">'+a.question+'</p><div id="quiz-cd" style="font-size:42px;font-weight:900;letter-spacing:.06em;text-align:center;margin:10px 0;color:var(--amber)">⏱ '+txt+'</div><p style="text-align:center;font-size:13px;font-weight:800">Tirage de '+n+' gagnant'+(n>1?'s':'')+' — suivez le décompte</p>';
+      qb.classList.remove('hidden');
+      _quizPaint=key;
+    } else {
+      const el=document.getElementById('quiz-cd'); if(el) el.textContent='⏱ '+txt;
+    }
+    return;
+  }
+  if(shown){
+    if(_quizPaint===key) return;
+    const lab=a.winners.length===1?'🏆 Gagnant : ':'🏆 Encore en lice : ';
+    qb.innerHTML='<b style="font-size:15px">🏆 Quiz KLEAN</b><p style="margin:8px 0 4px;font-size:14px;font-weight:700">'+a.question+'</p><p style="font-size:16px;font-weight:900;color:var(--p);text-align:center;margin:10px 0">'+lab+a.winners.join(', ')+'</p>';
+    qb.classList.remove('hidden'); _quizPaint=key; return;
+  }
+  if(a.closed){
+    if(_quizPaint===key) return;
+    qb.innerHTML='<b style="font-size:15px">🏆 Quiz KLEAN</b><p style="margin:8px 0 4px;font-size:14px;font-weight:700">'+a.question+'</p><p style="font-size:13px;font-weight:800">Réponses fermées — attendez le décompte du PDG.</p>';
+    qb.classList.remove('hidden'); _quizPaint=key; return;
+  }
+  if(_quizPaint===key) return;
+  const opts=(a.choices||[]).map((c,i)=>'<button onclick="sendQuiz('+i+')" style="width:100%;text-align:left;margin-top:7px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-weight:800;cursor:pointer">'+(String.fromCharCode(65+i))+'. '+c+'</button>').join('');
+  qb.innerHTML='<b style="font-size:15px">🏆 Quiz KLEAN</b><p style="margin:8px 0 4px;font-size:14px;font-weight:700">'+a.question+'</p>'+opts+'<small id="quiz-ok" style="display:block;margin-top:8px;color:var(--muted)"></small>';
+  qb.classList.remove('hidden'); _quizPaint=key;
+}
+function loadAffiche(){
   fetch('/api/annonce',{cache:'no-store'}).then(r=>r.json()).then(d=>{
     if(!d || !d.annonce) return;
     const a=d.annonce;
@@ -2361,16 +2400,14 @@ function showInstallFab(){
       tr.textContent = tx+tx+tx+tx;
       bar.classList.remove('hidden');
     }
-    if(a.type==='quiz' && a.question){
-      const qb=document.getElementById('quiz-box'); if(!qb) return;
-      const opts=(a.choices||[]).map((c,i)=>'<button onclick="sendQuiz('+i+')" style="width:100%;text-align:left;margin-top:7px;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-weight:800;cursor:pointer">'+(String.fromCharCode(65+i))+'. '+c+'</button>').join('');
-      qb.innerHTML='<b style="font-size:15px">🏆 Quiz KLEAN</b><p style="margin:8px 0 4px;font-size:14px;font-weight:700">'+a.question+'</p>'+opts+'<small id="quiz-ok" style="display:block;margin-top:8px;color:var(--muted)"></small>';
-      qb.classList.remove('hidden');
-    }
+    paintQuiz(a);
   }).catch(()=>{});
-})();
+}
+loadAffiche();
+setInterval(loadAffiche, 1000);
 async function sendQuiz(i){
-  const r=await fetch('/api/quiz/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:i})});
+  let who=''; try{ who=localStorage.getItem('klean_nom')||localStorage.getItem('klean_tel')||''; }catch(e){}
+  const r=await fetch('/api/quiz/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({choice:i, nom:who, deviceId:who||('web-'+Date.now())})});
   const d=await r.json().catch(()=>({}));
   const el=document.getElementById('quiz-ok');
   if(el) el.textContent = d.ok ? ('🎉 '+(d.message||'Bonne réponse !')) : ('❌ '+(d.message||'Ce n’est pas ça'));

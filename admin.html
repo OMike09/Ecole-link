@@ -210,6 +210,16 @@ fetch('/api/health',{cache:'no-store'}).then(function(r){return r.json();}).then
           <option value="2">Bonne réponse : C</option>
           <option value="3">Bonne réponse : D</option>
         </select>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span id="qz-stats" style="font-size:12px;font-weight:800;color:var(--amber)">Quiz : —</span>
+          <label style="font-size:11px;font-weight:800">Gagnants <input id="qz-nwin" type="number" min="1" max="50" value="1" title="Nombre de gagnants ce tour" style="width:52px;padding:7px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit"></label>
+          <label style="font-size:11px;font-weight:800">Décompte (sec) <input id="qz-sec" type="number" min="5" max="3600" value="30" title="Durée du décompte, choisie par le PDG" style="width:64px;padding:7px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit"></label>
+          <button type="button" onclick="lancerDecompte()" style="background:rgba(255,176,32,.18);border:1px solid rgba(255,176,32,.45);color:var(--amber);font-weight:900;padding:7px 10px;border-radius:8px;cursor:pointer;font-family:inherit">⏱ Lancer le décompte</button>
+          <button type="button" onclick="revelerQuiz()" style="background:rgba(21,201,138,.16);border:1px solid rgba(21,201,138,.4);color:var(--p);font-weight:900;padding:7px 10px;border-radius:8px;cursor:pointer;font-family:inherit">🏆 Afficher maintenant</button>
+          <button type="button" onclick="stopQuiz()" style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-weight:800;padding:7px 10px;border-radius:8px;cursor:pointer;font-family:inherit">⏹ Fermer les réponses</button>
+        </div>
+        <div id="qz-cd" style="font-size:22px;font-weight:900;letter-spacing:.04em;margin-top:8px;color:var(--amber)"></div>
+        <div id="qz-winners" style="font-size:12px;margin-top:6px;color:var(--p)"></div>
       </div>
       <small id="ann-cur" style="display:block;margin-top:9px;color:var(--muted)">Aucune affiche en cours.</small>
       <div id="field-chat-hq" style="margin-top:12px;background:var(--card2);border-radius:12px;padding:10px">
@@ -348,22 +358,7 @@ fetch('/api/health',{cache:'no-store'}).then(function(r){return r.json();}).then
         <input id="acp-mail" placeholder="✉️ E-mail (facultatif)" maxlength="60" style="margin-top:8px;width:100%;padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
         <select id="acp-service" style="margin-top:8px;width:100%;padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
           <option value="maison">🧹 Ménage maison</option><option value="bureaux">🏢 Bureaux</option><option value="canapes">🛋️ Canapés & tapis</option><option value="vitres">🪟 Vitres</option><option value="grand">🏰 Grand ménage</option><option value="plomberie">🔧 Plomberie</option><option value="electricite">💡 Électricité</option><option value="clim">❄️ Climatisation</option><option value="serrurerie">🔐 Serrurerie</option><option value="jardinage">🌿 Jardinage</option><option value="lavageauto">🚗 Lavage auto</option><option value="bricolage">🛠️ Bricolage</option><option value="demen">📦 Déménagement</option><option value="cuisine">🍽️ Cuisinier</option><option value="cours">📚 Cours à domicile</option><option value="custom">✨ Demande sur mesure</option>
-        </select>
-        <button class="btn-main" style="width:100%;margin-top:9px" onclick="createProHQ()">🏗️ Ouvrir le compte pro (validation immédiate)</button>
-      </div>
-    </div>
-    <div style="padding:12px 16px 4px">
-      <input id="people-search" placeholder="🔍 Rechercher par nom, téléphone, quartier, service…"
-        oninput="renderPeople()" style="width:100%;background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 13px;font-size:13.5px;font-family:inherit">
-    </div>
-    <div class="body" id="people"><div class="empty">Chargement des inscrits…</div></div>
-  </div>
-
-  <div class="grid">
-    <!-- Missions live -->
-    <div class="panel">
-      <h3>🧾 Missions <span class="cnt" id="m-cnt">—</span></h3>
-      <div class="body" id="missions"><div class="empty">Aucune mission pour le moment</div></div>
+   y" id="missions"><div class="empty">Aucune mission pour le moment</div></div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:14px">
@@ -481,7 +476,8 @@ async function loadAll(){
     if(cands) renderCands(cands);
     PEOPLE = ppl || {agents:[], clients:[]}; renderPeople();
     if(ME && ME.role==='pdg'){ renderConfig(cfg); if(aud) renderAudit(aud); loadPdgExtras(); }
-    loadTeam(); loadAnnonce(); loadHqChat(); loadFields();
+    loadTeam(); loadAnnonce(); loadQuizHQ(); loadHqChat(); loadFields();
+    if(!window._qzPoll){ window._qzPoll=setInterval(loadQuizHQ, 1000); }
   }catch(e){
     console.warn('HQ : une partie des données n’a pas chargé', e);
   }
@@ -516,7 +512,7 @@ async function changePwd(){
 async function logout(){
   localStorage.removeItem('k2_hq_ok');
   await fetch('/api/admin/logout', {method:'POST'}).catch(()=>{});
-  location.href = (ME && ME.role==='gest') ? '/gest' : '/pdg';
+  location.href = (ME && ME.role==='gest') ? '/gest' : '/admin';
 }
 function renderOverview(o){
   setLive(true);
@@ -652,8 +648,55 @@ async function publierAnnonce(){
   if(!r.ok) return alert('⚠️ '+(d.error||'Publication impossible'));
   document.getElementById('ann-msg').value='';
   alert('📣 Publié ! Tous les clients et tous les professionnels verront l\'affiche en moins d\'une minute (ou à leur prochaine ouverture).');
-  loadAnnonce();
+  loadAnnonce(); loadQuizHQ();
 }
+let _qzTick=null;
+async function loadQuizHQ(){
+  try{
+    const d = await fetch('/api/admin/quiz',{cache:'no-store'}).then(r=>r.json());
+    const s=document.getElementById('qz-stats');
+    if(s) s.textContent = d.active ? ('Quiz : '+(d.nOk||0)+' bonne(s) / '+(d.nTotal||0)+' · en lice : '+((d.stagePool&&d.stagePool.length)||d.nOk||0)+(d.closed?' · réponses fermées':'')) : 'Quiz : —';
+    const w=document.getElementById('qz-winners');
+    const rounds=(d.rounds||[]).map((r,i)=>'Tour '+(i+1)+' ('+r.n+') : '+(r.winners||[]).join(', ')).join(' · ');
+    if(w) w.textContent = (d.countdownRevealed && d.winners&&d.winners.length) ? ('🏆 '+(d.winners.length===1?'Gagnant : ':'Encore en lice : ')+d.winners.join(', ')+(rounds?' | '+rounds:'')) : ((d.goods&&d.goods.length)?'Bons : '+d.goods.join(', '):'');
+    tickQuizCd(d.countdownEndsAt, d.countdownRevealed);
+  }catch(e){}
+}
+function tickQuizCd(ends, revealed){
+  const el=document.getElementById('qz-cd'); if(!el) return;
+  if(_qzTick){ clearInterval(_qzTick); _qzTick=null; }
+  if(!ends || revealed){ el.textContent=''; return; }
+  const end=new Date(ends).getTime();
+  const run=()=>{
+    const left=Math.max(0, Math.ceil((end-Date.now())/1000));
+    const m=Math.floor(left/60), sec=String(left%60).padStart(2,'0');
+    el.textContent = left? ('⏱ '+m+':'+sec) : '🏆 …';
+    if(!left){ clearInterval(_qzTick); _qzTick=null; setTimeout(loadQuizHQ, 400); }
+  };
+  run(); _qzTick=setInterval(run, 250);
+}
+async function stopQuiz(){
+  const r=await fetch('/api/admin/quiz/stop',{method:'POST'}); const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert(d.error||'Impossible');
+  alert('Réponses fermées. '+ (d.nOk||0)+' bonne(s). Lancez ensuite le décompte.');
+  loadQuizHQ();
+}
+async function lancerDecompte(){
+  const n=parseInt((document.getElementById('qz-nwin')||{}).value,10)||1;
+  const seconds=parseInt((document.getElementById('qz-sec')||{}).value,10)||30;
+  const r=await fetch('/api/admin/quiz/countdown',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n,seconds})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert(d.error||'Impossible');
+  alert('⏱ Décompte lancé : '+d.seconds+' s pour '+d.n+' gagnant(s) (sur '+d.pool+'). Tout le monde le voit. À 0 les noms s’affichent. Relancez un autre décompte pour réduire jusqu’au gagnant final.');
+  loadQuizHQ();
+}
+async function revelerQuiz(){
+  const r=await fetch('/api/admin/quiz/reveal',{method:'POST'}); const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert(d.error||'Impossible');
+  alert('🏆 Affiché : '+((d.winners||[]).join(', ')||'—'));
+  loadQuizHQ();
+}
+async function tirerQuiz(){ return lancerDecompte(); }
 async function retirerAnnonce(){
   if(!confirm('Retirer l\'affiche actuelle ?')) return;
   await fetch('/api/admin/annonce', {method:'DELETE'});
@@ -719,7 +762,9 @@ function renderSupport(){
     const thread = !open ? '' : `<div onclick="event.stopPropagation()" style="margin:8px 0 4px 46px">
       <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;margin-bottom:8px">${mm.map(s=>{
         const me=s.from==='hq';
-        return `<div style="align-self:${me?'flex-end':'flex-start'};max-width:90%;background:${me?'rgba(21,201,138,.14)':'var(--card2)'};border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12.5px">${s.text}<small style="display:block;color:var(--muted);font-size:9.5px">${me?('vous ('+(s.par||'')+')'):(s.nom||'')} · ${(s.at||'').slice(11,16)}</small></div>`;
+        const lab = me ? ((s.par==='PDG'||s.par==='pdg')?'PDG':('vous ('+(s.par||'')+')')) : (s.nom||'');
+        const vu = me && s.readUser ? ' · vu' : '';
+        return `<div style="align-self:${me?'flex-end':'flex-start'};max-width:90%;background:${me?'rgba(21,201,138,.14)':'var(--card2)'};border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12.5px">${s.text}<small style="display:block;color:var(--muted);font-size:9.5px">${lab} · ${(s.at||'').slice(11,16)}${vu}</small></div>`;
       }).join('')||'—'}</div>
       <div style="display:flex;gap:6px"><input id="sup-input" placeholder="Répondre sous ${c.nom}…" maxlength="400" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px"><button class="btn-main" style="flex:none" onclick="supReply()">Envoyer</button></div>
     </div>`;
@@ -1070,7 +1115,11 @@ async function loadHqChat(){
         document.body.appendChild(b);
       } else b.textContent='🟠 '+n;
     }
-    box.innerHTML=(d.messages||[]).map(m=>`<div style="align-self:${m.from==='pdg'?'flex-end':'flex-start'};max-width:86%;background:${m.from==='pdg'?'rgba(21,201,138,.14)':'rgba(255,138,0,.14)'};border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12.5px">${m.text}<small style="display:block;color:var(--muted);font-size:9.5px">${m.gestNom||m.from} · ${(m.at||'').slice(11,16)}</small></div>`).join('')||'<div class="empty">Aucun message</div>';
+    box.innerHTML=(d.messages||[]).map(m=>{
+      const who = m.from==='pdg' ? 'PDG' : (m.gestNom||'Gestionnaire');
+      const vu = m.from==='pdg' ? (m.readGest?' · vu':'') : (m.readPdg?' · vu':'');
+      return `<div style="align-self:${m.from==='pdg'?'flex-end':'flex-start'};max-width:86%;background:${m.from==='pdg'?'rgba(21,201,138,.14)':'rgba(255,138,0,.14)'};border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12.5px">${m.text}<small style="display:block;color:var(--muted);font-size:9.5px">${who} · ${(m.at||'').slice(11,16)}${vu}</small></div>`;
+    }).join('')||'<div class="empty">Aucun message</div>';
     box.scrollTop=box.scrollHeight;
   }catch(e){}
 }
@@ -1153,6 +1202,33 @@ setInterval(loadAll, 12000); // secours
       if (!h3) return;
       const k = keyOf(p, i, h3.textContent || '');
       let ic = h3.querySelector('.fold-ic');
+      if (!ic) {
+        ic = document.createElement('span');
+        ic.className = 'fold-ic';
+        h3.appendChild(ic);
+        h3.addEventListener('click', () => {
+          const f = !p.classList.contains('folded');
+          p.classList.toggle('folded', f);
+          const m = load(); m[k] = f; save(m);
+          ic.textContent = f ? '▸' : '▾';
+          ic.style.transform = f ? 'rotate(-90deg)' : '';
+        });
+      }
+      const folded = (k in mem) ? mem[k] : isFoldByDefault(h3.textContent || '');
+      p.classList.toggle('folded', folded);
+      ic.textContent = folded ? '▸' : '▾';
+      ic.style.transform = folded ? 'rotate(-90deg)' : '';
+    });
+  }
+  window.addEventListener('load', refresh);
+  /* re-annoter après chaque rechargement complet (les contenus arrivent en websock) */
+  setInterval(() => { if (document.querySelector('.panel .fold-ic') === null) refresh(); }, 4000);
+  document.addEventListener && document.addEventListener('DOMContentLoaded', refresh);
+})();
+</script>
+</body>
+</html>
+);
       if (!ic) {
         ic = document.createElement('span');
         ic.className = 'fold-ic';
