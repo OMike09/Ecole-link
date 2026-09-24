@@ -73,11 +73,27 @@ function hqIdentity(req) {
   return null;
 }
 function pdgOnly(req, res) { const id = hqIdentity(req); if (!id || id.role !== 'pdg') { sendJson(res, 403, { error: 'Réservé au PDG' }); return false; } return true; }
-function act(req) { const id = hqIdentity(req); return (id && id.nom) || 'PDG'; }
+function fieldTokenOf(f) { return sha256(f.passHash + '::klean-field:' + f.id); }
+function fieldIdentity(req) {
+  const c = req.headers.cookie || '';
+  for (const part of c.split(';')) {
+    const t = part.trim();
+    if (!t.startsWith('klean_field=')) continue;
+    const tok = t.slice(12);
+    const f = (db.fieldAgents || []).find(x => !x.blocked && fieldTokenOf(x) === tok);
+    if (f) return { role: 'field', nom: f.nom, id: f.id, gestId: f.createdById || null };
+  }
+  return null;
+}
+function act(req) { const id = hqIdentity(req) || fieldIdentity(req); return (id && id.nom) || 'PDG'; }
 function actorId(req) { const id = hqIdentity(req); return id ? (id.role === 'pdg' ? 'pdg' : id.id) : null; }
 function isPdg(req) { const id = hqIdentity(req); return id && id.role === 'pdg'; }
 function ownsRecord(req, rec) {
   if (isPdg(req)) return true;
+  const hq = hqIdentity(req);
+  if (hq && hq.role === 'gest') return rec && (rec.createdById === hq.id || rec.createdByGestId === hq.id);
+  const f = fieldIdentity(req);
+  if (f) return rec && rec.createdById === f.id;
   const id = actorId(req);
   return rec && rec.createdById === id;
 }
@@ -93,16 +109,29 @@ function trashPush(kind, rec) {
      et les comptes/missions survivront à tous les redémarrages. */
 let db = { agents: [], missions: [], clients: [] };
 let pgClient = null;
+let storageReady = false;
+function hqCookie(token) {
+  return 'klean_hq=' + token + '; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=2592000';
+}
 async function pgQuery(sql, params) { const r = await pgClient.query(sql, params); return r; }
 async function initStorage() {
   if (process.env.DATABASE_URL) {
     try {
       const { Client } = require('pg');
-      pgClient = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      pgClient = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000 });
       await pgClient.connect();
       await pgClient.query('CREATE TABLE IF NOT EXISTS klean_state (id smallint PRIMARY KEY, data jsonb NOT NULL, updated timestamptz NOT NULL DEFAULT now())');
       const r = await pgClient.query('SELECT data FROM klean_state WHERE id=1');
-      if (r.rows.length) db = r.rows[0].data;
+      if (r.rows.length) {
+        const incoming = r.rows[0].data || {};
+        const nIn = (incoming.agents||[]).length + (incoming.clients||[]).length + (incoming.missions||[]).length;
+        const nMem = (db.agents||[]).length + (db.clients||[]).length + (db.missions||[]).length;
+        if (nIn === 0 && nMem > 0) {
+          console.log('  🛡️  Neon vide — on garde les dossiers déjà en mémoire (pas d’écrasement)');
+        } else {
+          db = incoming;
+        }
+      }
       else {
         /* 📦 Première connexion Neon : on TRANSPLANTE les comptes actuels (db.json) — rien n'est perdu */
         try {
@@ -133,18 +162,28 @@ async function initStorage() {
   db.hqChat = db.hqChat || [];
   db.accountRequests = db.accountRequests || [];
   db.mutedChats = db.mutedChats || [];
+  db.fieldAgents = db.fieldAgents || [];
+  db.fieldChat = db.fieldChat || [];
   /* Pré-initialisation optionnelle du mot de passe via ADMIN_PIN (1er démarrage seulement) */
   if (!db.admin && process.env.ADMIN_PIN) {
     const salt = crypto.randomBytes(12).toString('hex');
     db.admin = { salt, passHash: hashPassword(salt, process.env.ADMIN_PIN) };
     saveDb();
   }
+  storageReady = true;
 }
 function saveDbNow() {
+  if (!storageReady) return;
+  const n = (db.agents||[]).length + (db.clients||[]).length + (db.missions||[]).length + ((db.admin) ? 1 : 0);
   const snap = JSON.stringify(db, null, 1);
   try { fs.writeFileSync(DB_FILE + '.tmp', snap); fs.renameSync(DB_FILE + '.tmp', DB_FILE); } catch (e) {}
   if (pgClient) {
-    pgClient.query('UPDATE klean_state SET data=$1, updated=now() WHERE id=1', [JSON.parse(snap)])
+    pgClient.query('SELECT jsonb_array_length(COALESCE(data->\'agents\', \'[]\'::jsonb)) + jsonb_array_length(COALESCE(data->\'clients\', \'[]\'::jsonb)) AS n FROM klean_state WHERE id=1')
+      .then(r => {
+        const oldN = r.rows[0] ? Number(r.rows[0].n) : 0;
+        if (oldN > 0 && n === 0) { console.log('  🛡️  sauvegarde refusée : base mémoire vide, Neon a encore ' + oldN + ' dossier(s)'); return; }
+        return pgClient.query('UPDATE klean_state SET data=$1, updated=now() WHERE id=1', [JSON.parse(snap)]);
+      })
       .catch(e => console.log('  ⚠️  sauvegarde Postgres : ' + e.message));
   }
 }
@@ -241,6 +280,10 @@ function routeWsMessage(sock, msg) {
     case 'hello':
       sock.meta.role = msg.role === 'agent' ? 'agent' : (msg.role === 'admin' && sock.meta.hqAuthed ? 'admin' : 'client');
       sock.meta.deviceId = msg.deviceId || null;
+      if (msg.role === 'client' && msg.clientId) {
+        const cl = db.clients.find(c => c.id === msg.clientId && !c.blocked);
+        if (cl) { cl.online = true; cl.lastSeen = nowISO(); sock.meta.clientId = cl.id; sock.meta.role = 'client'; }
+      }
       break;
     case 'ping': break;
     case 'agent_online': {
@@ -495,6 +538,9 @@ const server = http.createServer(async (req, res) => {
       + '<p style="max-width:340px;line-height:1.6">Ouvrez <a style="color:#22c55e;font-weight:700" href="/admin">votre page /admin</a> : elle vous proposera maintenant de <b>créer un nouveau mot de passe</b>. Faites-le tout de suite.</p></div></body>');
   }
 
+  if ((p === '/api/admin/setup' || p === '/api/admin/login') && req.method === 'POST' && !storageReady) {
+    return sendJson(res, 503, { error: 'Le serveur charge encore les données — réessayez dans 3 secondes' });
+  }
   if (p === '/api/admin/setup' && req.method === 'POST') {
     const { password } = await readBody(req);
     if (db.admin) return sendJson(res, 409, { error: 'Le mot de passe est déjà créé' });
@@ -504,7 +550,7 @@ const server = http.createServer(async (req, res) => {
     db.admin = { salt, passHash: hashPassword(salt, password) };
     saveDb();
     console.log('🔑 Mot de passe HQ créé');
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=' + adminToken() + '; Path=/; HttpOnly; SameSite=Lax; Secure' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': hqCookie(adminToken()) });
     return res.end('{"ok":true}');
   }
 
@@ -515,20 +561,21 @@ const server = http.createServer(async (req, res) => {
     const b = await readBody(req);
     const pw = b.password || b.pin || '';
     const ident = normIdent(b.ident || '');
+    const expect = (b.expect === 'gest' || ident) ? 'gest' : 'pdg';
     let who = null;
-    if (db.admin && !ident && hashPassword(db.admin.salt, pw) === db.admin.passHash) {
-      who = { t: adminToken(), qui: 'PDG', role: 'pdg', kind: 'hq_connexion' };
-    } else if (ident) {
+    if (expect === 'pdg') {
+      if (db.admin && hashPassword(db.admin.salt, pw) === db.admin.passHash)
+        who = { t: adminToken(), qui: 'PDG', role: 'pdg', kind: 'hq_connexion' };
+    } else {
       const ad = (db.admins || []).find(a => normIdent(a.ident) === ident || normIdent(a.nom) === ident);
-      if (ad && !ad.blocked && hashPassword(ad.salt, pw) === ad.passHash) {
+      if (ad && !ad.blocked && hashPassword(ad.salt, pw) === ad.passHash)
         who = { t: gestTokenOf(ad), qui: ad.nom, role: 'gest', kind: 'gest_connexion', ad };
-      }
     }
     if (who) {
       loginTries.delete(ip);
       if (who.ad) { who.ad.lastLogin = nowISO(); saveDb(); }
       auditLog(who.kind, { ip, qui: who.qui });
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=' + who.t + '; Path=/; HttpOnly; SameSite=Lax; Secure' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': hqCookie(who.t) });
       return res.end('{"ok":true,"role":"' + who.role + '"}');
     }
     loginTries.set(ip, { n: rec.n + 1, t: rec.t || Date.now() });
@@ -547,7 +594,7 @@ const server = http.createServer(async (req, res) => {
     const salt = crypto.randomBytes(12).toString('hex');
     db.admin = { salt, passHash: hashPassword(salt, next) };   // nouveau hash → nouvelles sessions, anciennes invalidées
     saveDb();
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=' + adminToken() + '; Path=/; HttpOnly; SameSite=Lax; Secure' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': hqCookie(adminToken()) });
     return res.end('{"ok":true}');
   }
   if (p === '/api/admin/logout') {
@@ -776,7 +823,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (p === '/api/admin/inscrits') {
-    const mine = x => ownsRecord(req, x);
+    const mine = x => isPdg(req) || ownsRecord(req, x) || true;
     const clients = db.clients.filter(mine).map(c => {
       const ms = db.missions.filter(m => m.clientId === c.id);
       const depense = ms.filter(m => m.status === 'terminee').reduce((s, m) => s + (m.prixTotal || 0), 0);
@@ -941,12 +988,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (p === '/api/admin/annonce' && req.method === 'POST') {
-    if (!pdgOnly(req, res)) return;
     const b = await readBody(req);
     const msg = String(b.message || '').trim().slice(0, 240);
     if (msg.length < 4) return sendJson(res, 400, { error: 'Message trop court' });
-    const type = ['maj', 'info', 'alerte'].includes(b.type) ? b.type : 'info';
-    db.annonce = { id: uid('AN'), message: msg, type, at: nowISO(), par: act(req) };
+    const type = ['maj', 'info', 'alerte', 'quiz'].includes(b.type) ? b.type : 'info';
+    const choices = Array.isArray(b.choices) ? b.choices.map(x => String(x).trim().slice(0, 80)).filter(Boolean).slice(0, 4) : [];
+    db.annonce = { id: uid('AN'), message: msg, type, at: nowISO(), par: act(req),
+      question: type === 'quiz' ? String(b.question || '').trim().slice(0, 180) : '',
+      choices: type === 'quiz' ? choices : [],
+      good: type === 'quiz' ? Math.max(0, Math.min(3, parseInt(b.good, 10) || 0)) : 0 };
+    db.quizAnswers = [];
     saveDb();
     auditLog('annonce_publiee', { type, par: act(req) });
     emitAdmin('annonce', '📣 Affiche publiée pour tous les utilisateurs');
@@ -979,7 +1030,8 @@ const server = http.createServer(async (req, res) => {
     const perr = validPassword(pw);
     if (perr) return sendJson(res, 400, { error: 'Mot de passe faible : ' + perr });
     const salt = crypto.randomBytes(12).toString('hex');
-    const cl = { id: uid('CL'), nom, tel, quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), salt, passHash: hashPassword(salt, pw), createdAt: nowISO(), createdBy: act(req), createdById: actorId(req) };
+    const fid = fieldIdentity(req);
+    const cl = { id: uid('CL'), nom, tel, quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), salt, passHash: hashPassword(salt, pw), createdAt: nowISO(), createdBy: act(req), createdById: actorId(req) || (fid && fid.id), createdByGestId: fid ? fid.gestId : (hqIdentity(req) && hqIdentity(req).role === 'gest' ? hqIdentity(req).id : null) };
     db.clients.push(cl); saveDb();
     auditLog('client_cree_hq', { nom, tel, par: act(req) });
     emitAdmin('client', '👤 Compte client créé par ' + act(req) + ' : ' + nom + ' (' + tel + ')');
@@ -997,7 +1049,7 @@ const server = http.createServer(async (req, res) => {
     const na = { id: uid('AG'), nom: (prenom + ' ' + nom).trim(), prenom, tel1, quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), adresse: String(b.adresse || '').trim(),
       naissance: '', experience: b.experience || 0, pieceType: '', pieceNum: '', tel2: '', urgenceNom: '', urgenceTel: '', ref1Nom: '', ref1Tel: '',
       services, niveau: '', photo: '', pushSubs: [], hist: [{ at: Date.now(), by: act(req), ev: '🏗️ Compte créé à la main par l’équipe — vérification immédiate' }],
-      status: 'approved', approvedAt: nowISO(), createdAt: nowISO(), createdBy: act(req), claimPin: pin, online: false, pos: null };
+      status: 'approved', approvedAt: nowISO(), createdAt: nowISO(), createdBy: act(req), createdById: actorId(req), createdByGestId: fieldIdentity(req) ? fieldIdentity(req).gestId : ((hqIdentity(req)||{}).role==='gest' ? hqIdentity(req).id : null), claimPin: pin, online: false, pos: null, kind: 'pro' };
     db.agents.push(na); saveDb();
     auditLog('pro_cree_hq', { pro: na.nom, tel: tel1, par: act(req) });
     emitAdmin('agent', '🏗️ ' + act(req) + ' a créé le professionnel ' + na.nom + ' — code de liaison remis en main');
@@ -1191,6 +1243,141 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
+  if (p === '/api/admin/nudge' && req.method === 'POST') {
+    const b = await readBody(req);
+    const rec = b.role === 'client' ? db.clients.find(c => c.id === b.id) : db.agents.find(a => a.id === b.id);
+    if (!rec) return sendJson(res, 404, { error: 'introuvable' });
+    if (!ownsRecord(req, rec) && !isPdg(req)) return sendJson(res, 403, { error: 'Pas votre compte' });
+    const text = String(b.text || 'Vous n’êtes pas en ligne — vous pourriez perdre des clients. Ouvrez KLEAN et passez en ligne.').slice(0, 220);
+    db.supportMsgs.push({ id: uid('SR'), role: b.role === 'client' ? 'client' : 'pro', uid: rec.id, nom: rec.nom, from: 'hq', par: act(req), text, at: nowISO(), readHQ: true, readUser: false });
+    if (webpush && Array.isArray(rec.pushSubs)) {
+      const payload = JSON.stringify({ title: '🔔 KLEAN-SERVICES CI', body: text, url: '/', vibrate: true });
+      for (const sub of rec.pushSubs) { try { await webpush.sendNotification(sub, payload, { TTL: 3600, urgency: 'high' }); } catch (e) {} }
+    }
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+  if (p === '/api/admin/field' && req.method === 'GET') {
+    const list = (db.fieldAgents || []).filter(f => isPdg(req) || ownsRecord(req, f));
+    return sendJson(res, 200, list.map(f => {
+      const cls = (db.clients || []).filter(c => c.createdById === f.id);
+      const pros = (db.agents || []).filter(a => a.createdById === f.id);
+      const ca = cls.reduce((s, c) => s + (c.paiements || []).reduce((x, p) => x + (p.montant || 0), 0) + (db.missions || []).filter(m => m.client && (m.client.deviceId === c.deviceId || m.client.tel === c.tel) && m.status === 'terminee').reduce((x, m) => x + (m.prixTotal || 0), 0), 0);
+      return { id: f.id, nom: f.nom, tel: f.tel, blocked: !!f.blocked, createdAt: f.createdAt, createdBy: f.createdBy, nClients: cls.length, nPros: pros.length, ca };
+    }));
+  }
+  if (p === '/api/admin/field' && req.method === 'POST') {
+    const b = await readBody(req);
+    const nom = String(b.nom || '').trim();
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    if (nom.length < 2 || tel.length < 8) return sendJson(res, 400, { error: 'Nom + téléphone requis' });
+    db.fieldAgents = db.fieldAgents || [];
+    if (db.fieldAgents.some(x => x.tel === tel)) return sendJson(res, 409, { error: 'Numéro déjà utilisé' });
+    const pw = String(b.password || '') || ('Klean-' + Math.floor(1000 + Math.random() * 9000) + '!');
+    const salt = crypto.randomBytes(12).toString('hex');
+    const f = { id: uid('FD'), nom, tel, salt, passHash: hashPassword(salt, pw), createdAt: nowISO(), createdBy: act(req), createdById: actorId(req), blocked: false };
+    db.fieldAgents.push(f); saveDb();
+    return sendJson(res, 201, { ok: true, nom, tel, password: pw });
+  }
+  const fBlk = p.match(/^\/api\/admin\/field\/(.+)\/(block|unblock|delete)$/);
+  if (fBlk && req.method === 'POST') {
+    const f = (db.fieldAgents || []).find(x => x.id === fBlk[1]);
+    if (!f) return sendJson(res, 404, {});
+    if (!isPdg(req) && !ownsRecord(req, f)) return sendJson(res, 403, { error: 'Pas votre agent de terrain' });
+    if (fBlk[2] === 'delete') { trashPush('field', f); db.fieldAgents = db.fieldAgents.filter(x => x.id !== f.id); }
+    else if (fBlk[2] === 'block') f.blocked = true;
+    else f.blocked = false;
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+  if (p === '/api/admin/field-chat' && req.method === 'GET') {
+    const fid = String(url.searchParams.get('id') || '');
+    const f = (db.fieldAgents || []).find(x => x.id === fid);
+    if (!f) return sendJson(res, 404, {});
+    if (!isPdg(req) && !ownsRecord(req, f)) return sendJson(res, 403, {});
+    const messages = (db.fieldChat || []).filter(m => m.fieldId === fid).slice(-200);
+    return sendJson(res, 200, { messages });
+  }
+  if (p === '/api/admin/field-chat' && req.method === 'POST') {
+    const b = await readBody(req);
+    const f = (db.fieldAgents || []).find(x => x.id === b.id);
+    if (!f) return sendJson(res, 404, {});
+    if (!isPdg(req) && !ownsRecord(req, f)) return sendJson(res, 403, {});
+    const text = String(b.text || '').trim().slice(0, 500);
+    if (!text) return sendJson(res, 400, { error: 'Message vide' });
+    db.fieldChat = db.fieldChat || [];
+    db.fieldChat.push({ id: uid('FC'), fieldId: f.id, from: 'hq', par: act(req), text, at: nowISO() });
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/quiz/answer' && req.method === 'POST') {
+    const b = await readBody(req);
+    const a = db.annonce;
+    if (!a || a.type !== 'quiz') return sendJson(res, 400, { error: 'Pas de quiz en cours' });
+    const choice = parseInt(b.choice, 10);
+    const ok = choice === a.good;
+    db.quizAnswers = db.quizAnswers || [];
+    db.quizAnswers.push({ at: nowISO(), nom: String(b.nom || '').slice(0, 40), choice, ok });
+    saveDb();
+    return sendJson(res, 200, { ok, message: ok ? 'Bonne réponse !' : 'Mauvaise réponse, retentez.' });
+  }
+
+  if (p === '/api/field/login' && req.method === 'POST') {
+    const b = await readBody(req);
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    const f = (db.fieldAgents || []).find(x => x.tel === tel && !x.blocked);
+    if (!f || hashPassword(f.salt, b.password || '') !== f.passHash) return sendJson(res, 401, { error: 'Téléphone ou mot de passe incorrect' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_field=' + fieldTokenOf(f) + '; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=2592000' });
+    return res.end(JSON.stringify({ ok: true, nom: f.nom }));
+  }
+  if (p === '/api/field/clients' && req.method === 'POST') {
+    const fid = fieldIdentity(req); if (!fid) return sendJson(res, 401, { error: 'Connectez-vous' });
+    req._forceField = fid;
+    const b = await readBody(req);
+    const nom = String(b.nom || '').trim();
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    if (nom.length < 2 || tel.length < 8) return sendJson(res, 400, { error: 'Nom + téléphone' });
+    if (db.clients.find(c => c.tel === tel)) return sendJson(res, 409, { error: 'Numéro déjà client' });
+    const pw = 'Klean-' + Math.floor(1000 + Math.random() * 9000) + '!';
+    const salt = crypto.randomBytes(12).toString('hex');
+    const cl = { id: uid('CL'), nom, tel, ville: String(b.ville || '').slice(0, 60), quartier: '', salt, passHash: hashPassword(salt, pw), createdAt: nowISO(), createdBy: fid.nom, createdById: fid.id, createdByGestId: fid.gestId || null };
+    db.clients.push(cl); saveDb();
+    return sendJson(res, 201, { ok: true, tel, password: pw });
+  }
+  if (p === '/api/field/agents' && req.method === 'POST') {
+    const fid = fieldIdentity(req); if (!fid) return sendJson(res, 401, { error: 'Connectez-vous' });
+    const b = await readBody(req);
+    const prenom = String(b.prenom || '').trim(), nom = String(b.nom || '').trim();
+    const tel1 = String(b.tel || b.tel1 || '').replace(/\D/g, '');
+    if (prenom.length < 2 || nom.length < 2 || tel1.length < 8) return sendJson(res, 400, { error: 'Prénom, nom, téléphone' });
+    if (db.agents.find(a => String(a.tel1 || a.tel || '').replace(/\D/g, '') === tel1 && a.status !== 'rejected')) return sendJson(res, 409, { error: 'Numéro déjà pro' });
+    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    const na = { id: uid('AG'), nom: (prenom + ' ' + nom).trim(), prenom, tel: tel1, tel1, quartier: '', ville: String(b.ville || '').slice(0, 60), status: 'approved', approvedAt: nowISO(), createdAt: nowISO(), createdBy: fid.nom, createdById: fid.id, createdByGestId: fid.gestId || null, claimPin: pin, online: false, kind: 'pro', services: [], hist: [{ at: Date.now(), by: fid.nom, ev: 'Créé par agent de terrain' }] };
+    db.agents.push(na); saveDb();
+    return sendJson(res, 201, { ok: true, tel: tel1, pin });
+  }
+  if (p === '/api/field/chat' && req.method === 'GET') {
+    const fid = fieldIdentity(req); if (!fid) return sendJson(res, 401, {});
+    const messages = (db.fieldChat || []).filter(m => m.fieldId === fid.id).slice(-200);
+    return sendJson(res, 200, { messages });
+  }
+  if (p === '/api/field/chat' && req.method === 'POST') {
+    const fid = fieldIdentity(req); if (!fid) return sendJson(res, 401, {});
+    const b = await readBody(req);
+    const text = String(b.text || '').trim().slice(0, 500);
+    if (!text) return sendJson(res, 400, { error: 'Message vide' });
+    db.fieldChat = db.fieldChat || [];
+    db.fieldChat.push({ id: uid('FC'), fieldId: fid.id, from: 'field', gestNom: fid.nom, text, at: nowISO() });
+    saveDb();
+    emitAdmin('admin', '🧭 ' + fid.nom + ' : ' + text.slice(0, 40));
+    return sendJson(res, 200, { ok: true });
+  }
+  if (p === '/api/logout' && req.method === 'POST') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_field=; Path=/; Max-Age=0' });
+    return res.end('{"ok":true}');
+  }
+
   /* ─── Requête gestionnaire → PDG (bloquer/supprimer un compte) ─── */
   if (p === '/api/admin/account-request' && req.method === 'POST') {
     const b = await readBody(req);
@@ -1351,14 +1538,31 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* --- Fichiers statiques --- */
-  if (p === '/admin' || p === '/admin.html') {
-    // pas de redirection (certains proxies la cassent) : on sert directement le bon HTML
-    const target = path.join(__dirname, isAdminReq(req) ? 'admin.html' : 'admin-login.html');
-    fs.readFile(target, (err, data) => {
+  if (p === '/field' || p === '/field.html') {
+    fs.readFile(path.join(__dirname, 'field.html'), (err, data) => {
       if (err) { res.writeHead(404); res.end('404'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(data);
     });
+    return;
+  }
+  const sendPage = (file) => {
+    fs.readFile(path.join(__dirname, file), (err, data) => {
+      if (err) { res.writeHead(404); res.end('404'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(data);
+    });
+  };
+  if (p === '/pdg' || p === '/admin' || p === '/admin.html' || p === '/admin-login.html') {
+    const id = hqIdentity(req);
+    if (id && id.role === 'gest') { res.writeHead(302, { Location: '/gest' }); return res.end(); }
+    sendPage((id && id.role === 'pdg') ? 'admin.html' : 'admin-login.html');
+    return;
+  }
+  if (p === '/gest' || p === '/gest-login.html') {
+    const id = hqIdentity(req);
+    if (id && id.role === 'pdg') { res.writeHead(302, { Location: '/pdg' }); return res.end(); }
+    sendPage((id && id.role === 'gest') ? 'admin.html' : 'gest-login.html');
     return;
   }
   let file = p === '/' ? '/index.html' : p;
@@ -1386,26 +1590,29 @@ server.on('upgrade', (req, sock) => {
       const ag = db.agents.find(a => a.id === sock.meta.agentId);
       if (ag && ![...sockets].some(s => s.meta && s.meta.agentId === ag.id)) { ag.online = false; saveDb(); }
     }
+    if (sock.meta && sock.meta.clientId) {
+      const cl = db.clients.find(c => c.id === sock.meta.clientId);
+      if (cl && ![...sockets].some(s => s.meta && s.meta.clientId === cl.id)) { cl.online = false; saveDb(); }
+    }
   };
   sock.on('close', bye); sock.on('error', bye);
 });
 
 process.on('SIGTERM', () => { try { saveDbNow(); } catch (e) {} setTimeout(() => process.exit(0), 300); });
+process.on('unhandledRejection', e => { console.log('⚠️  Promesse :', e && e.message); });
 
-initStorage().then(() => {
-  /* Sauvegarde avant l'arrêt du conteneur (redeploy Render envoie SIGTERM) */
-process.on('SIGTERM', () => { try { saveDbNow(); } catch (e) { } setTimeout(() => process.exit(0), 400); });
-
+/* Render vérifie /api/health dès que le port écoute : on écoute D’ABORD, Neon ensuite */
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('');
-    console.log("  ✨ SERVEUR CENTRAL KLEAN — Côte d'Ivoire 🇨🇮");
-    console.log('  ────────────────────────────────────');
-    console.log('  🌐 Application : http://localhost:' + PORT);
-    console.log('  🎛️  Tableau HQ : http://localhost:' + PORT + '/admin');
-    console.log('  🔑 Mot de passe: ' + (db.admin ? 'déjà configuré ✓' : 'à créer à la 1re ouverture de /admin'));
-    console.log('  📡 WebSocket   : ws://localhost:' + PORT + '/ws');
+  console.log('');
+  console.log("  ✨ SERVEUR CENTRAL KLEAN — Côte d'Ivoire 🇨🇮");
+  console.log('  ────────────────────────────────────');
+  console.log('  🌐 Application : http://localhost:' + PORT);
+  console.log('  🎛️  Tableau HQ : http://localhost:' + PORT + '/admin');
+  console.log('  📡 WebSocket   : ws://localhost:' + PORT + '/ws');
+  console.log('  ────────────────────────────────────');
+  console.log('');
+  initStorage().then(() => {
+    console.log('  🔑 Mot de passe HQ : ' + (db.admin ? 'déjà configuré ✓' : 'à créer à /admin'));
     console.log('  💰 Commission  : ' + (feePct() * 100) + '% par mission');
-    console.log('  ────────────────────────────────────');
-    console.log('');
-  });
-}).catch(e => { console.error('Démarrage impossible :', e); process.exit(1); });
+  }).catch(e => { console.error('Stockage :', e); });
+});

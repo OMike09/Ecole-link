@@ -53,7 +53,7 @@ function connectWS(){
   NET.ws = ws;
   ws.onopen = () => {
     NET.on = true;
-    wsSend({type:'hello', role:'client', deviceId:NET.deviceId});
+    wsSend({type:'hello', role:'client', deviceId:NET.deviceId, clientId: (typeof client!=='undefined' && client && client.id) ? client.id : null});
     applyNetOverrides();
     toast('🛰️ Connecté au serveur KLEAN — temps réel activé');
     // si un profil agent existe et était en ligne → se réannoncer

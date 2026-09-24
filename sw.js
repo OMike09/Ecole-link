@@ -1,7 +1,7 @@
 /* ═══════════ KLEAN — Service Worker (PWA) ═══════════
    L'app s'installe et reste ouvrable même réseau lent.
    API & temps réel : toujours en direct (jamais de cache). */
-const CACHE = 'klean-v17'; // ⚠️ à incrémenter à chaque déploiement (force l'oubli de l'ancien)
+const CACHE = 'klean-v20'; // ⚠️ à incrémenter à chaque déploiement (force l'oubli de l'ancien)
 const SHELL = [
   '/', '/index.html', '/net.js', '/manifest.json',
   '/klean-icon-192.png', '/klean-icon-512.png'
@@ -22,7 +22,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;                                  // jamais de POST en cache
-  if (url.pathname.startsWith('/api/') || url.pathname === '/ws') return;  // API & WS : toujours réseau
+  if (url.pathname.startsWith('/api/') || url.pathname === '/ws') return;
+  if (/^\/(admin|pdg|gest|field)/.test(url.pathname) || url.pathname.indexOf('admin') >= 0) return;
   // Navigation (pages) : réseau d'abord, cache de secours
   if (e.request.mode === 'navigate') {
     e.respondWith(

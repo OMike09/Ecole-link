@@ -37,14 +37,8 @@
 <body>
 <div class="card" id="card">
   <div class="bubble">✨</div>
-  <h1 id="title">KLEAN HQ</h1>
-  <p class="sub" id="subtitle">Espace propriétaire · Bouaké 🇨🇮</p>
-
-  <label class="lbl" id="lbl-ident">Identifiant <span style="color:#9bb3aa;font-weight:700">(gestionnaires — vide = PDG)</span></label>
-  <div class="pw-wrap" id="wrap-ident">
-    <input class="pw" id="ident" type="text" maxlength="40" placeholder="ex : awa.ckn" autocomplete="off" style="font-size:15px">
-  </div>
-
+  <h1 id="title">Espace PDG</h1>
+  <p class="sub" id="subtitle">KLEAN-SERVICES CI</p>
   <label class="lbl" id="lbl-pw">Mot de passe</label>
   <div class="pw-wrap">
     <input class="pw" id="pw" type="password" maxlength="64" placeholder="••••••••" autocomplete="off" autofocus>
@@ -97,7 +91,7 @@ function validRules(v){
   return null;
 }
 pwEl.addEventListener('input', strengthMsg);
-function hideIdent(h){ const w=document.getElementById('wrap-ident'), l=document.getElementById('lbl-ident'); if(w) w.style.display=h?'none':''; if(l) l.style.display=h?'none':''; }
+function hideIdent(h){ }
 pw2El.addEventListener('input', strengthMsg);
 pwEl.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
 pw2El.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
@@ -105,10 +99,8 @@ pw2El.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
 function applyMode(){
   const card = document.getElementById('card');
   card.classList.toggle('setup', SETUP);
-  document.getElementById('title').textContent = SETUP ? 'Créez votre mot de passe' : 'KLEAN HQ';
-  document.getElementById('subtitle').textContent = SETUP
-    ? 'Une seule fois : créez votre clé propriétaire (suite à la vérification de sécurité du 21 sept.) — ensuite vous vous connecterez directement'
-    : 'Espace propriétaire · Côte d\'Ivoire 🇨🇮';
+  document.getElementById('title').textContent = SETUP ? 'Créez votre mot de passe' : 'Espace PDG';
+  document.getElementById('subtitle').textContent = 'KLEAN-SERVICES CI';
   document.getElementById('lbl-pw').textContent = SETUP ? 'Choisissez votre mot de passe' : 'Mot de passe';
   hideIdent(SETUP);
   document.getElementById('btn').innerHTML = SETUP ? '🔐 Créer mon mot de passe' : '🔓 Accéder au tableau de bord';
@@ -146,8 +138,8 @@ async function submit(){
     if(v !== pw2El.value){ pw2El.classList.add('err'); msg.style.color='var(--red)'; msg.textContent='❌ Les deux saisies ne correspondent pas'; return; }
     if(SERVER){
       try{
-        const r = await fetch('/api/admin/setup', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
-        if(r.ok){ location.href='/admin'; return; }
+        const r = await fetch('/api/admin/setup', {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({password:v})});
+        if(r.ok){ localStorage.setItem('k2_hq_ok','1'); location.href='/admin'; return; }
         const d = await r.json().catch(()=>({}));
         msg.style.color='var(--red)'; msg.textContent = '❌ '+(d.error||'Erreur serveur');
         if(r.status===409){ SETUP=false; applyMode(); }
@@ -165,8 +157,9 @@ async function submit(){
   // Connexion
   if(SERVER){
     try{
-      const r = await fetch('/api/admin/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v, ident:(document.getElementById('ident')||{}).value||''})});
-      if(r.ok){ location.href='/admin'; return; }
+      const r = await fetch('/api/admin/login', {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({password:v, expect:'pdg'})});
+      if(r.status===503){ msg.textContent='⏳ Chargement du serveur…'; await new Promise(x=>setTimeout(x,2500)); return submit(); }
+      if(r.ok){ localStorage.setItem('k2_hq_ok','1'); location.href='/admin'; return; }
       throw 0;
     }catch(e){
       pwEl.classList.add('err'); pwEl.value=''; pwEl.focus();

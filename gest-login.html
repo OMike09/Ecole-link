@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="/klean-icon-192.png" type="image/png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KLEAN — Espace gestionnaire</title>
+<style>
+  :root{--bg:#0b1512;--card:#122019;--line:#1e332a;--p:#15c98a;--pd:#0da678;--ink:#e8f2ed;--muted:#7f948a;--red:#ff6b6b}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,sans-serif;background:radial-gradient(600px 400px at 50% -10%, rgba(138,99,210,.16), transparent 70%), var(--bg);color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:32px 26px;width:100%;max-width:360px}
+  .bubble{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#8a63d2,#5b3ba8);display:flex;align-items:center;justify-content:center;font-size:27px;margin:0 auto 14px}
+  h1{font-size:20px;margin-bottom:4px;text-align:center}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:20px;text-align:center}
+  .lbl{font-size:12px;font-weight:800;color:var(--muted);display:block;margin:12px 0 6px;text-transform:uppercase}
+  .pw{width:100%;padding:14px;border-radius:14px;border:2px solid var(--line);background:#0d1915;color:var(--ink);font-size:16px;outline:none;font-family:inherit}
+  .pw:focus{border-color:#9d78e6}
+  button.go{width:100%;margin-top:18px;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,#8a63d2,#5b3ba8);color:#fff;font-weight:900;font-size:15px;cursor:pointer;font-family:inherit}
+  .msg{min-height:18px;font-size:12.5px;font-weight:700;margin-top:12px;text-align:center}
+  .hint{margin-top:16px;font-size:11px;color:var(--muted);text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="bubble">🟠</div>
+  <h1>Espace Gestionnaire</h1>
+  <p class="sub">KLEAN-SERVICES CI</p>
+  <label class="lbl">Identifiant</label>
+  <input class="pw" id="ident" type="text" maxlength="40" placeholder="ex : john.sm" autocomplete="username">
+  <label class="lbl">Mot de passe</label>
+  <input class="pw" id="pw" type="password" maxlength="64" placeholder="••••••••" autocomplete="current-password">
+  <button class="go" onclick="submit()">🔓 Entrer dans mon espace</button>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+document.getElementById('pw').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+async function submit(){
+  const msg=document.getElementById('msg');
+  msg.textContent='⏳ Vérification…'; msg.style.color='var(--muted)';
+  const ident=(document.getElementById('ident').value||'').trim();
+  const password=document.getElementById('pw').value;
+  if(!ident){ msg.style.color='var(--red)'; msg.textContent='❌ Identifiant requis'; return; }
+  const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({ident,password,expect:'gest'})});
+  if(r.status===503){ msg.textContent='⏳ Chargement…'; await new Promise(x=>setTimeout(x,2000)); return submit(); }
+  if(r.ok){ localStorage.setItem('k2_hq_ok','1'); location.href='/gest'; return; }
+  msg.style.color='var(--red)'; msg.textContent='❌ Identifiant ou mot de passe incorrect';
+}
+</script>
+</body>
+</html>

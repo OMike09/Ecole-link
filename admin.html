@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KLEAN HQ — Tableau de bord · Côte d'Ivoire</title>
 <link rel="icon" href="/klean-icon-192.png" type="image/png">
+<script>
+fetch('/api/health',{cache:'no-store'}).then(function(r){return r.json();}).then(function(h){
+  function paint(){
+    var bar=document.getElementById('base-bar');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='base-bar';
+      bar.style.cssText='background:#ffb020;color:#1a1204;font-weight:900;font-size:16px;padding:12px 16px;text-align:center';
+      if(document.body) document.body.insertBefore(bar, document.body.firstChild);
+    }
+    bar.textContent='📦 En base : '+(h.clientsTotal||0)+' client(s) · '+(h.agentsTotal||0)+' professionnel(s) · '+(h.missions||0)+' mission(s)  —  0 en ligne = personne n’a ouvert l’app';
+    fetch('/api/admin/inscrits',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(p){
+      var ag=(p.agents||[]).map(function(a){return a.nom;}).filter(Boolean);
+      var cl=(p.clients||[]).map(function(c){return c.nom;}).filter(Boolean);
+      var extra=[];
+      if(ag.length) extra.push('Pros : '+ag.join(', '));
+      if(cl.length) extra.push('Clients : '+cl.join(', '));
+      if(extra.length) bar.innerHTML=bar.textContent+'<div style="font-size:14px;margin-top:6px;font-weight:800">'+extra.join(' · ')+'</div>';
+    }).catch(function(){});
+    var sub=document.getElementById('k-agents-sub'); if(sub) sub.textContent='sur '+(h.agentsTotal||0)+' professionnel(s)';
+    var c=document.getElementById('c-inscrits'); if(c) c.textContent=h.clientsTotal||0;
+    var c2=document.getElementById('c-clients'); if(c2) c2.textContent=h.clientsTotal||0;
+  }
+  if(document.body) paint(); else document.addEventListener('DOMContentLoaded', paint);
+}).catch(function(){});
+</script>
 <style>
   :root{
     --bg:#0b1512; --card:#122019; --card2:#16261f; --line:#1e332a;
@@ -144,25 +170,57 @@
         <input id="tm-pw" type="password" placeholder="🔑 Mot de passe (8+ signes · lettre · chiffre · symbole)" style="margin-top:8px;width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px" maxlength="64">
         <button class="btn-main" style="width:100%;flex:none;margin-top:9px" onclick="createAdmin()">➕ Créer cet administrateur</button>
       </div>
+      <div id="field-box" style="margin-top:10px">
+        <b style="font-size:12.5px">🧭 Agents de terrain</b>
+        <p style="font-size:11.5px;color:var(--muted);margin:4px 0 8px">Ils recense et créent seulement clients + professionnels. PDG et gestionnaires peuvent les bloquer / supprimer. Lien : /field</p>
+        <input id="fd-nom" placeholder="Nom *" style="width:100%;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;margin-bottom:6px">
+        <input id="fd-tel" placeholder="Téléphone *" style="width:100%;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;margin-bottom:6px">
+        <button class="btn-main" style="width:100%" onclick="createField()">➕ Créer l'agent de terrain</button>
+        <div id="field-list" style="margin-top:8px"></div>
+      </div>
       <div id="admins"></div>
     </div>
   </div>
 
   <!-- 📣 Affiche pour tous les utilisateurs (mise à jour, information, annonce) -->
   <div class="panel" style="margin-bottom:14px" id="panel-ann">
-    <h3>📣 Affiche à tous les utilisateurs</h3>
+    <h3>📣 Affiche aux utilisateurs</h3>
     <div class="body" style="padding:12px 14px">
-      <input id="ann-msg" maxlength="240" placeholder="Ex : Mise à jour ce soir à 22 h — 5 minutes d'interruption" style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.4">Visible sur l’accueil. Choisissez <b>🏆 Quiz</b> pour une question à choix sous le bandeau défilant.</p>
+      <input id="ann-msg" maxlength="240" placeholder="Texte de l’affiche (défile sur l’accueil) *" style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px">
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <select id="ann-type" style="flex:1;min-width:130px;padding:10px 11px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12px">
+        <select id="ann-type" onchange="document.getElementById('ann-quiz').style.display=this.value==='quiz'?'block':'none'" style="flex:1;min-width:130px;padding:10px 11px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12px">
           <option value="maj">✨ Mise à jour</option>
           <option value="info">ℹ️ Information</option>
           <option value="alerte">⚠️ Importante</option>
+          <option value="quiz">🏆 Quiz</option>
         </select>
         <button class="btn-main" style="flex:none" onclick="publierAnnonce()">📢 Publier</button>
         <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:11px;font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="retirerAnnonce()">✕ Retirer</button>
       </div>
+      <div id="ann-quiz" style="display:none;margin-top:8px;background:var(--card2);border-radius:12px;padding:10px">
+        <input id="qz-q" maxlength="180" placeholder="Question du quiz *" style="width:100%;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px;margin-bottom:6px">
+        <input id="qz-a" placeholder="Choix A *" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;margin-bottom:5px">
+        <input id="qz-b" placeholder="Choix B *" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;margin-bottom:5px">
+        <input id="qz-c" placeholder="Choix C" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;margin-bottom:5px">
+        <input id="qz-d" placeholder="Choix D" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;margin-bottom:5px">
+        <select id="qz-ok" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px">
+          <option value="0">Bonne réponse : A</option>
+          <option value="1">Bonne réponse : B</option>
+          <option value="2">Bonne réponse : C</option>
+          <option value="3">Bonne réponse : D</option>
+        </select>
+      </div>
       <small id="ann-cur" style="display:block;margin-top:9px;color:var(--muted)">Aucune affiche en cours.</small>
+      <div id="field-chat-hq" style="margin-top:12px;background:var(--card2);border-radius:12px;padding:10px">
+        <b style="font-size:12.5px">💬 Fil agents de terrain</b>
+        <select id="fc-who" onchange="loadFieldChat()" style="width:100%;margin:6px 0;padding:8px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px"></select>
+        <div id="fc-msgs" style="max-height:140px;overflow:auto;font-size:12px;margin-bottom:6px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="fc-txt" placeholder="Répondre…" style="flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px">
+          <button class="btn-main" style="flex:none;padding:9px 12px" onclick="sendFieldChat()">Envoyer</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -171,13 +229,6 @@
     <h3>💬 Support & messages <span class="cnt" id="sup-cnt">—</span></h3>
     <div class="body" style="padding:12px 14px">
       <div id="sup-convs"></div>
-      <div id="sup-chat" style="display:none;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px">
-        <div id="sup-msgs" style="max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:9px"></div>
-        <div style="display:flex;gap:6px">
-          <input id="sup-input" placeholder="Répondre (signé à votre nom)…" maxlength="400" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px">
-          <button class="btn-main" style="flex:none" onclick="supReply()">Envoyer</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -251,9 +302,19 @@
     <div class="body" id="audit"><div class="empty">—</div></div>
   </div>
 
+  <div class="panel" style="margin-bottom:14px" id="panel-online-cli">
+    <h3>🟢 Clients en ligne <span class="cnt" id="oncli-cnt">—</span></h3>
+    <div class="body" id="oncli-list" style="padding:8px 0"><div class="empty">Aucun client connecté pour le moment.</div></div>
+  </div>
+
   <!-- Toutes les personnes inscrites (agents + clients) avec recherche -->
   <div class="panel" style="margin-bottom:14px">
     <h3>👥 Personnes inscrites <span class="cnt" id="people-cnt">—</span></h3>
+    <div style="padding:10px 16px 0;display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="PEOPLE_FILTER='all';renderPeople()" style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:11px;font-weight:800;padding:7px 11px;border-radius:9px;cursor:pointer;font-family:inherit">Tous</button>
+      <button onclick="PEOPLE_FILTER='on';renderPeople()" style="background:var(--card2);border:1px solid var(--line);color:var(--p);font-size:11px;font-weight:800;padding:7px 11px;border-radius:9px;cursor:pointer;font-family:inherit">🟢 En ligne</button>
+      <button onclick="PEOPLE_FILTER='off';renderPeople()" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:800;padding:7px 11px;border-radius:9px;cursor:pointer;font-family:inherit">⚪ Hors ligne</button>
+    </div>
     <div style="padding:10px 16px 0;display:flex;gap:8px;flex-wrap:wrap">
       <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="toggleAcctForm('client')">➕ Créer un compte client</button>
       <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="toggleAcctForm('pro')">➕ Créer un compte pro</button>
@@ -376,33 +437,53 @@ function enterDemo(){
 }
 
 async function fetchJ(url){
-  const r = await fetch(url);
-  if(r.status === 401){ location.href = '/admin-login.html'; throw 0; }
+  const r = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+  if(r.status === 401){ location.href = (location.pathname.indexOf('/gest')>=0?'/gest':'/admin'); throw 0; }
   if(!r.ok) throw 0;
   return r.json();
 }
+(function bootCounts(){
+  fetch('/api/health',{cache:'no-store'}).then(r=>r.json()).then(h=>{
+    const sub=document.querySelector('#k-agents-sub');
+    if(sub) sub.textContent='sur '+(h.agentsTotal||0)+' professionnel(s)';
+    const a=document.querySelector('#k-agents');
+    if(a && !(h.agentsEnLigne>0)) { /* laisse 0 en ligne */ }
+    [['#c-inscrits', h.clientsTotal],['#c-clients', h.clientsTotal],['#c-done', h.missionsTerminees||0]].forEach(([id,v])=>{
+      const el=document.querySelector(id); if(el) el.textContent = (v||0);
+    });
+  }).catch(()=>{});
+})();
 async function loadAll(){
   try{
     ME = await fetchJ('/api/admin/whoami').catch(()=>ME);
-    const [ov, ms, ags, cands, ppl, cfg, aud] = await Promise.all([
-      fetchJ('/api/admin/overview'),
-      fetchJ('/api/admin/missions'),
-      fetchJ('/api/admin/agents'),
-      fetchJ('/api/admin/candidatures'),
-      fetchJ('/api/admin/inscrits'),
+    const soft = u => fetchJ(u).catch(()=>null);
+    let [ov, ms, ags, cands, ppl, cfg, aud] = await Promise.all([
+      soft('/api/admin/overview'),
+      soft('/api/admin/missions'),
+      soft('/api/admin/agents'),
+      soft('/api/admin/candidatures'),
+      soft('/api/admin/inscrits'),
       fetch('/api/config').then(r=>r.json()).catch(()=>({commission:25})),
-      fetchJ('/api/admin/audit').catch(()=>null)
+      soft('/api/admin/audit')
     ]);
     applyRole(); loadSupport();
-    renderOverview(ov); renderMissions(ms); renderAgents(ags); renderCands(cands);
+    if(!ov || !(ov.agentsTotal || ov.clientsTotal)){
+      try{
+        const h = await fetch('/api/health',{cache:'no-store'}).then(r=>r.json());
+        ov = Object.assign({agentsEnLigne:0,missionsToday:0,missionsActive:0,caToday:0,commToday:0,caTotal:0,commTotal:0,gainAgentsTotal:0,missionsDone:0,candsPending:0,ca7:[]}, ov||{}, {
+          agentsTotal: h.agentsTotal, clientsTotal: h.clientsTotal, missionsTotal: h.missions
+        });
+      }catch(e){}
+    }
+    if(ov) renderOverview(ov);
+    if(ms) renderMissions(ms);
+    if(ags) renderAgents(ags);
+    if(cands) renderCands(cands);
     PEOPLE = ppl || {agents:[], clients:[]}; renderPeople();
     if(ME && ME.role==='pdg'){ renderConfig(cfg); if(aud) renderAudit(aud); loadPdgExtras(); }
-    loadTeam(); loadAnnonce(); loadHqChat();
+    loadTeam(); loadAnnonce(); loadHqChat(); loadFields();
   }catch(e){
-    // Aperçu sans serveur : exiger la connexion locale avant la démo
-    if(localStorage.getItem('k2_hq_ok') !== '1'){ location.href = 'admin-login.html'; return; }
-    OFFLINE = true;
-    enterDemo(); setLive(false);
+    console.warn('HQ : une partie des données n’a pas chargé', e);
   }
 }
 let OFFLINE = false;
@@ -435,7 +516,7 @@ async function changePwd(){
 async function logout(){
   localStorage.removeItem('k2_hq_ok');
   await fetch('/api/admin/logout', {method:'POST'}).catch(()=>{});
-  location.href = '/admin-login.html';
+  location.href = (ME && ME.role==='gest') ? '/gest' : '/pdg';
 }
 function renderOverview(o){
   setLive(true);
@@ -460,6 +541,13 @@ function renderOverview(o){
 
 /* ─── Personnes inscrites : agents + clients, avec recherche ─── */
 let PEOPLE = {agents:[], clients:[]};
+let PEOPLE_FILTER = 'all';
+async function nudgeOff(role, id, nom){
+  if(!confirm('📲 Envoyer une alerte poche à '+nom+' : vous n\'êtes pas en ligne ?')) return;
+  const r=await fetch('/api/admin/nudge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,id})});
+  if(r.ok) alert('📲 Alerte envoyée à '+nom);
+  else alert('⚠️ Envoi impossible (notifications poche peut-être pas activées)');
+}
 function pNorm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 let ME = null, TEAM = [];
 function toggleAcctForm(which){
@@ -503,8 +591,49 @@ async function reassignMission(id, clientNom){
   alert('✅ Mission remise en circulation !\nLes autres professionnels viennent d\'être avertis.');
   loadAll();
 }
+async function createField(){
+  const nom=((document.getElementById('fd-nom')||{}).value||'').trim();
+  const tel=((document.getElementById('fd-tel')||{}).value||'').trim();
+  const r=await fetch('/api/admin/field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom,tel})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Impossible'));
+  alert('🧭 Agent créé\\nNom : '+d.nom+'\\nTél : '+d.tel+'\\nMot de passe : '+d.password+'\\nLien : '+location.origin+'/field');
+  if(document.getElementById('fd-nom')) document.getElementById('fd-nom').value='';
+  loadFields();
+}
+async function loadFields(){
+  const r=await fetch('/api/admin/field'); if(!r.ok) return;
+  const list=await r.json();
+  const el=document.getElementById('field-list'); if(!el) return;
+  const sel=document.getElementById('fc-who');
+  if(sel){ const cur=sel.value; sel.innerHTML='<option value=\"\">— choisir un agent —</option>'+(list||[]).map(f=>'<option value=\"'+f.id+'\">'+f.nom+' · '+f.tel+'</option>').join(''); if(cur) sel.value=cur; }
+  el.innerHTML=(list||[]).map(f=>`<div class="agrow" style="align-items:flex-start">
+    <div style="flex:1"><b>${f.nom}</b> ${f.blocked?'<span class="badge" style="background:rgba(255,107,107,.16);color:var(--red)">BLOQUÉ</span>':''}<br>
+    <small>📞 ${f.tel} · 👤 ${f.nClients||0} client(s) · 🧑‍💼 ${f.nPros||0} pro(s) · 💸 ${fmt(f.ca||0)}</small></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:10px;font-weight:800;padding:6px 8px;border-radius:8px;cursor:pointer" onclick="fieldAct('${f.id}','${f.blocked?'unblock':'block'}')">${f.blocked?'✅':'🔒'}</button>
+      <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10px;font-weight:800;padding:6px 8px;border-radius:8px;cursor:pointer" onclick="fieldAct('${f.id}','delete')">🗑️</button>
+    </div></div>`).join('') || '<div class="empty">Aucun agent de terrain.</div>';
+}
+async function fieldAct(id, act){
+  if(act==='delete' && !confirm('Supprimer cet agent de terrain ?')) return;
+  await fetch('/api/admin/field/'+id+'/'+act,{method:'POST'});
+  loadFields();
+}
+async function loadFieldChat(){
+  const id=(document.getElementById('fc-who')||{}).value; if(!id) return;
+  const r=await fetch('/api/admin/field-chat?id='+encodeURIComponent(id)); if(!r.ok) return;
+  const d=await r.json();
+  const box=document.getElementById('fc-msgs'); if(!box) return;
+  box.innerHTML=(d.messages||[]).map(m=>'<div style="margin:4px 0"><b>'+(m.from==='hq'?(m.par||'HQ'):'terrain')+'</b> — '+m.text+'</div>').join('')||'<span style="color:var(--muted)">Aucun message</span>';
+}
+async function sendFieldChat(){
+  const id=(document.getElementById('fc-who')||{}).value, text=((document.getElementById('fc-txt')||{}).value||'').trim();
+  if(!id||!text) return alert('Choisissez un agent et écrivez');
+  await fetch('/api/admin/field-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,text})});
+  document.getElementById('fc-txt').value=''; loadFieldChat();
+}
 async function loadAnnonce(){
-  if(ME && ME.role !== 'pdg'){ const p=document.getElementById('panel-ann'); if(p) p.style.display='none'; return; }
   try{
     const d = await fetch('/api/annonce', {cache:'no-store'}).then(r=>r.json());
     const el = document.getElementById('ann-cur');
@@ -531,10 +660,19 @@ async function retirerAnnonce(){
   loadAnnonce();
 }
 /* 🛡️ Matrice des rôles à l'écran : si connecté GESTIONNAIRE, tout ce qui est PDG disparaît */
+function openAffichePanel(){
+  const p=document.getElementById('panel-ann'); if(!p) return;
+  p.style.display='block';
+  p.classList.remove('folded');
+  const ic=p.querySelector('.fold-ic'); if(ic){ ic.textContent='▾'; ic.style.transform=''; }
+  p.scrollIntoView({behavior:'smooth', block:'start'});
+  const sel=document.getElementById('ann-type'); if(sel) sel.focus();
+}
 function applyRole(){
+  const pan=document.getElementById('panel-ann'); if(pan) pan.style.display='block';
   if(ME && ME.role !== 'pdg'){
     document.body.classList.add('role-gest');
-    ['panel-cfg','panel-audit','panel-ann','panel-ca7'].forEach(id=>{ const p=document.getElementById(id); if(p) p.style.display='none'; });
+    ['panel-cfg','panel-audit','panel-ca7'].forEach(id=>{ const p=document.getElementById(id); if(p) p.style.display='none'; });
     ['k-ca','k-comm','c-ca','c-comm','c-gains'].forEach(id=>{
       const el=document.getElementById(id); if(!el) return;
       const card=el.closest('.kpi') || el.closest('.chip') || el.parentElement;
@@ -575,32 +713,29 @@ function renderSupport(){
   const box = document.getElementById('sup-convs'); if(!box) return;
   const list = (SUPV && SUPV.conversations) || [];
   document.querySelector('#sup-cnt').textContent = list.length ? list.length+' conversation(s)' : '—';
+  const mm = (SUPV && SUPV.messages) || [];
   box.innerHTML = list.map(c=>{
     const open = SUP_OPEN && SUP_OPEN.role===c.role && SUP_OPEN.uid===c.uid;
-    return `<div class="agrow" style="margin-bottom:6px;cursor:pointer" onclick="supToggle('${c.role}','${c.uid}','${(c.nom||'').replace(/'/g,'')}')">
+    const thread = !open ? '' : `<div onclick="event.stopPropagation()" style="margin:8px 0 4px 46px">
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;margin-bottom:8px">${mm.map(s=>{
+        const me=s.from==='hq';
+        return `<div style="align-self:${me?'flex-end':'flex-start'};max-width:90%;background:${me?'rgba(21,201,138,.14)':'var(--card2)'};border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12.5px">${s.text}<small style="display:block;color:var(--muted);font-size:9.5px">${me?('vous ('+(s.par||'')+')'):(s.nom||'')} · ${(s.at||'').slice(11,16)}</small></div>`;
+      }).join('')||'—'}</div>
+      <div style="display:flex;gap:6px"><input id="sup-input" placeholder="Répondre sous ${c.nom}…" maxlength="400" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px"><button class="btn-main" style="flex:none" onclick="supReply()">Envoyer</button></div>
+    </div>`;
+    return `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"><div class="agrow" style="cursor:pointer" onclick="supToggle('${c.role}','${c.uid}','${(c.nom||'').replace(/'/g,'')}')">
       <div class="avatar" style="background:${c.role==='pro'?'linear-gradient(135deg,#15c98a,#0a8f60)':'linear-gradient(135deg,#5b8ab8,#2c567c)'}">${(c.nom||'?')[0].toUpperCase()}</div>
       <div style="flex:1;min-width:0">
         <b>${c.nom}</b> <span class="badge">${c.role==='pro'?'PRO':'CLIENT'}</span>${c.unreadHQ?(' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">'+c.unreadHQ+' NON LU'+(c.unreadHQ>1?'S':'')+'</span>'):''}<br>
         <small style="color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:190px">${((c.last&&c.last.text)||'').slice(0,60)}</small>
       </div>
       <span style="color:var(--muted);font-size:13px">${open?'▾':'▸'}</span>
-    </div>`;
-  }).join('') || '<div class="empty">Aucun message encore.<br>Le support apparaîtra ici dès qu\u2019un client ou un professionnel écrira.</div>';
-  if(SUP_OPEN){
-    document.getElementById('sup-chat').style.display='block';
-    const mm = (SUPV && SUPV.messages) || [];
-    const sc = document.getElementById('sup-msgs');
-    sc.innerHTML = mm.map(s=>{
-      const me = s.from==='hq';
-      return `<div style="align-self:${me?'flex-end':'flex-start'};max-width:84%;background:${me?'rgba(21,201,138,.14)':'var(--card2)'};border:1px solid ${me?'rgba(21,201,138,.35)':'var(--line)'};border-radius:11px;padding:7px 10px;font-size:12.5px;line-height:1.42">${s.text}<small style="display:block;color:var(--muted);font-size:9.5px;margin-top:2px">${me?('vous ('+(s.par||'')+')'):(s.nom||'')} · ${(s.at||'').slice(11,16)}</small></div>`;
-    }).join('') || '<div class="empty">—</div>';
-    sc.scrollTop = sc.scrollHeight;
-  }
+    </div>${thread}</div>`;
+  }).join('') || '<div class="empty">Aucun message encore.</div>';
 }
 async function supToggle(role, uid, nom){
   if(SUP_OPEN && SUP_OPEN.role===role && SUP_OPEN.uid===uid){
     SUP_OPEN = null;
-    const chat = document.getElementById('sup-chat'); if(chat) chat.style.display='none';
     renderSupport(); return;
   }
   SUP_OPEN = {role, uid, nom}; await loadSupport();
@@ -656,8 +791,13 @@ function renderPeople(){
   const el = document.querySelector('#people'); if(!el) return;
   const q = pNorm((document.querySelector('#people-search')||{}).value || '');
   document.querySelector('#people-cnt').textContent = PEOPLE.agents.length + ' agent(s) · ' + PEOPLE.clients.length + ' client(s)';
-  const Ag = PEOPLE.agents.filter(a => !q || pNorm(a.nom+' '+a.tel+' '+a.quartier+' '+(a.services||[]).map(x=>SVC_N[x]||x).join(' ')).includes(q));
-  const Cl = PEOPLE.clients.filter(c => !q || pNorm(c.nom+' '+c.tel+' '+c.quartier).includes(q));
+  const onf = x => PEOPLE_FILTER==='all' || (PEOPLE_FILTER==='on' ? !!x.online : !x.online);
+  const Ag = PEOPLE.agents.filter(a => onf(a) && (!q || pNorm(a.nom+' '+a.tel+' '+a.quartier+' '+(a.services||[]).map(x=>SVC_N[x]||x).join(' ')).includes(q)));
+  const Cl = PEOPLE.clients.filter(c => onf(c) && (!q || pNorm(c.nom+' '+c.tel+' '+c.quartier).includes(q)));
+  const onC = (PEOPLE.clients||[]).filter(c=>c.online);
+  const oc=document.getElementById('oncli-list'); const occ=document.getElementById('oncli-cnt');
+  if(occ) occ.textContent = onC.length+' en ligne';
+  if(oc) oc.innerHTML = onC.length ? onC.map(c=>`<div class="agrow"><div class="avatar">${(c.nom||'?')[0]}<span class="doton"></span></div><div><b>${c.nom}</b><small>📞 ${c.tel||''}</small></div></div>`).join('') : '<div class="empty">Aucun client connecté pour le moment.</div>';
   const agentRow = a => {
     const [cls, txt] = CST[a.status] || ['b-pending', a.status||'?'];
     return `<div class="agrow">
@@ -673,7 +813,8 @@ function renderPeople(){
             <button style="background:var(--card2);border:1px solid rgba(255,176,32,.4);color:var(--amber);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="askMoreInfo('${a.id}')">➕ Infos</button>
             <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer" onclick="decideCand('${a.id}','reject','${(a.nom||'').replace(/'/g,'')}')">✕ Rejeter</button></div>` : `<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
             <button style="background:${a.blocked?'rgba(21,201,138,.15)':'var(--card2)'};border:1px solid ${a.blocked?'rgba(21,201,138,.4)':'rgba(255,176,32,.4)'};color:${a.blocked?'var(--p)':'var(--amber)'};font-size:10.5px;font-weight:900;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','${a.blocked?'unblock':'block'}','${(a.nom||'').replace(/'/g,'')}')">${a.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
-            <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','delete','${(a.nom||'').replace(/'/g,'')}')">🗑️ Supprimer</button></div>`}
+            <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','delete','${(a.nom||'').replace(/'/g,'')}')">🗑️ Supprimer</button>
+            ${a.online?'':`<button style="background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:var(--amber);font-size:10px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="nudgeOff('pro','${a.id}','${(a.nom||'').replace(/'/g,'')}')">📲 Pas en ligne</button>`}</div>`}
         </div>
       </div>
       <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;flex-shrink:0" onclick="togglePeopleDet('${a.id}')">🔍 Profil</button>
@@ -682,12 +823,13 @@ function renderPeople(){
   const clientRow = c => `<div class="agrow">
       <div class="avatar" style="background:linear-gradient(135deg,var(--blue),#2f6fd0)">${(c.nom||'?')[0].toUpperCase()}</div>
       <div style="flex:1;min-width:0">
-        <b>${c.nom}</b> <span class="badge" style="background:rgba(74,163,255,.14);color:var(--blue);border-color:rgba(74,163,255,.3)">CLIENT</span>${c.photo?' 📷':''}${c.blocked?' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">BLOQUÉ</span>':''}<br>
+        <b>${c.nom}</b> <span class="badge" style="background:rgba(74,163,255,.14);color:var(--blue);border-color:rgba(74,163,255,.3)">CLIENT</span> ${c.online?'<span class="badge b-active">en ligne</span>':'<span class="badge">hors ligne</span>'}${c.photo?' 📷':''}${c.blocked?' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">BLOQUÉ</span>':''}<br>
         <small>📞 ${c.tel||'—'} · 📍 ${c.quartier||'quartier non précisé'}</small><br>
         <small>🧾 ${c.missions||0} mission(s) · 💸 ${fmt(c.depense||0)} dépensés · inscrit le ${(c.createdAt||'').slice(0,10)}</small>
         <div style="margin-top:7px;display:flex;gap:6px">
           <button style="background:${c.blocked?'rgba(21,201,138,.15)':'var(--card2)'};border:1px solid ${c.blocked?'rgba(21,201,138,.4)':'rgba(255,176,32,.4)'};color:${c.blocked?'var(--p)':'var(--amber)'};font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionClient('${c.id}','${c.blocked?'unblock':'block'}','${(c.nom||'').replace(/'/g,'')}')">${c.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
           <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionClient('${c.id}','delete','${(c.nom||'').replace(/'/g,'')}')">🗑️ Supprimer</button>
+          ${c.online?'':`<button style="background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:var(--amber);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="nudgeOff('client','${c.id}','${(c.nom||'').replace(/'/g,'')}')">📲 Pas en ligne</button>`}
         </div>
       </div>
     </div>`;
@@ -989,12 +1131,12 @@ setInterval(loadAll, 12000); // secours
    — chaque panneau se replie/déplie au clic sur son titre
    — la préférence est mémorisée sur cet appareil (lien : klean_hq_fold_v2) */
 (function(){
-  const STORE = 'klean_hq_fold_v2';
+  const STORE = 'klean_hq_fold_v4';
   function load(){ try{ return JSON.parse(localStorage.getItem(STORE) || '{}'); }catch(e){ return {}; } }
   function save(m){ try{ localStorage.setItem(STORE, JSON.stringify(m)); }catch(e){} }
   /* ouvert par défaut : le quotidien — fermé par défaut : tout ce qui est long/archivé */
-  const FOLD_BY_DEFAULT = ['équipe dirigeante', 'affiche', "chiffre d'affaires", 'réglages', "journal d'audit", 'journal temps réel', 'professionnels', 'personnes inscrites'];
-  const OPEN_BY_DEFAULT = ['vérification', 'support', 'missions'];
+  const FOLD_BY_DEFAULT = ['équipe dirigeante', "chiffre d'affaires", 'réglages', "journal d'audit", 'journal temps réel', 'professionnels', 'personnes inscrites'];
+  const OPEN_BY_DEFAULT = ['vérification', 'support', 'missions', 'affiche'];
   function isFoldByDefault(titre){
     const t = (titre || '').toLowerCase();
     if (OPEN_BY_DEFAULT.some(k => t.includes(k))) return false;

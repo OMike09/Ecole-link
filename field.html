@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KLEAN — Agent de terrain</title>
+<link rel="icon" href="/klean-icon-192.png">
+<style>
+:root{--p:#15c98a;--pd:#0da678;--bg:#0b1512;--card:#122019;--line:#1e332a;--ink:#e8f2ed;--muted:#7f948a}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);max-width:520px;margin:0 auto;padding:16px}
+input,button{font:inherit}input{width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--line);background:#16261f;color:var(--ink);margin-bottom:8px}
+.btn{width:100%;background:var(--p);color:#04130c;font-weight:900;padding:12px;border:none;border-radius:12px;cursor:pointer}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+h1{font-size:18px;margin-bottom:10px}.note{font-size:12px;color:var(--muted);margin-bottom:10px}
+.hidden{display:none!important}
+</style></head><body>
+<div id="gate" class="card">
+  <h1>Espace Agent terrain</h1>
+  <p class="note" style="text-align:center;font-weight:800;letter-spacing:.3px">KLEAN-SERVICES CI</p>
+  <input id="tel" placeholder="📞 Téléphone" type="tel">
+  <input id="pw" placeholder="🔑 Mot de passe" type="password">
+  <button class="btn" onclick="login()">Entrer</button>
+</div>
+<div id="app" class="hidden">
+  <h1>🧭 <span id="hello"></span></h1>
+  <div class="card">
+    <b>👤 Nouveau client</b>
+    <input id="c-nom" placeholder="Nom *">
+    <input id="c-tel" placeholder="Téléphone *" type="tel">
+    <input id="c-ville" placeholder="Ville">
+    <button class="btn" onclick="mk('client')">Créer le client</button>
+  </div>
+  <div class="card">
+    <b>🧑‍💼 Nouveau professionnel</b>
+    <input id="p-prenom" placeholder="Prénom *">
+    <input id="p-nom" placeholder="Nom *">
+    <input id="p-tel" placeholder="Téléphone *" type="tel">
+    <input id="p-ville" placeholder="Ville">
+    <button class="btn" onclick="mk('pro')">Créer le pro</button>
+  </div>
+  <div class="card">
+    <b>💬 Écrire au gestionnaire / PDG</b>
+    <div id="msgs" style="max-height:160px;overflow:auto;font-size:13px;margin:8px 0"></div>
+    <input id="m" placeholder="Votre message">
+    <button class="btn" onclick="send()">Envoyer</button>
+  </div>
+  <button class="btn" style="background:#1e332a;color:var(--ink)" onclick="fetch('/api/logout',{method:'POST'});location.reload()">Sortir</button>
+</div>
+<script>
+async function login(){
+  const r=await fetch('/api/field/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tel:tel.value,password:pw.value})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert(d.error||'Refusé');
+  hello.textContent=d.nom; gate.classList.add('hidden'); app.classList.remove('hidden'); loadChat();
+}
+async function mk(kind){
+  if(kind==='client'){
+    const r=await fetch('/api/field/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom:document.getElementById('c-nom').value,tel:document.getElementById('c-tel').value,ville:document.getElementById('c-ville').value})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return alert(d.error||'Erreur');
+    alert('CLIENT CRÉÉ\\nTél : '+d.tel+'\\nMot de passe : '+d.password);
+  } else {
+    const r=await fetch('/api/field/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prenom:document.getElementById('p-prenom').value,nom:document.getElementById('p-nom').value,tel:document.getElementById('p-tel').value,ville:document.getElementById('p-ville').value})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) return alert(d.error||'Erreur');
+    alert('PRO CRÉÉ\\nTél : '+d.tel+'\\nCode liaison : '+d.pin);
+  }
+}
+async function loadChat(){
+  const r=await fetch('/api/field/chat'); if(!r.ok) return;
+  const d=await r.json();
+  msgs.innerHTML=(d.messages||[]).map(m=>'<div style="margin:4px 0"><b>'+(m.from==='field'?'vous':m.gestNom)+'</b> — '+m.text+'</div>').join('')||'<span class="note">Aucun message</span>';
+}
+async function send(){
+  const t=m.value.trim(); if(!t) return;
+  await fetch('/api/field/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});
+  m.value=''; loadChat();
+}
+setInterval(loadChat, 12000);
+</script>
+</body></html>

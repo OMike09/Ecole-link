@@ -37,7 +37,10 @@ Render gratuit **endort** le serveur après ~15 min sans visite. Au 1ᵉʳ clic,
 - + **toutes les autres villes de Côte d'Ivoire** sélectionnables (quartier tapé à la main).
 - + **saisie libre** : le client peut taper n'importe quelle ville inconnue.
 
-## 8. La boucle de mise à jour (à mémoriser)
+## 8. SMS (en attente Orange)
+L’envoi SMS **KLEAN-SV CI** est retiré de l’appli le temps qu’Orange **whitelist** le sender. Les hors ligne reçoivent encore l’alerte **poche**. On réactivera le SMS dès l’e-mail Orange.
+
+## 9. La boucle de mise à jour (à mémoriser)
 1. Vous décrivez le changement → 2. je le construis et teste → 3. dossier **A_ENVOYER N** (règle : toujours le numéro le plus grand) → 4. upload GitHub → 5. Render redéploie (~3 min) → 6. je vérifie à distance.
 
 ## 9. Sécurité déjà en place
