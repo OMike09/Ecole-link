@@ -2,591 +2,1038 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ÉCOLE LINK — Portail PDG 🟠</title>
-<link rel="manifest" href="/manifest-admin.json">
-<link rel="icon" type="image/png" href="/ecole-link-icon-192.png">
-<link rel="apple-touch-icon" href="/ecole-link-icon-192.png">
-<meta name="theme-color" content="#D96C00">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KLEAN HQ — Tableau de bord · Côte d'Ivoire</title>
+<link rel="icon" href="/klean-icon-192.png" type="image/png">
 <style>
-:root{--o:#E8820C;--od:#C96A00;--ob:#FFF3E4;--ok:#0D7A4D;--danger:#D64545;--ink:#211E19;--muted:#85806F;--line:#EDE3D3;--card:#FFFDF9;--card2:#FAF4E9;--bg:#FFFBF4;--r:18px;--shadow:0 2px 14px rgba(150,90,10,.10)}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,'Segoe UI',Roboto,Ubuntu,sans-serif;background:var(--bg);color:var(--ink);max-width:860px;margin:0 auto;padding:14px 12px 60px}
-button{font-family:inherit;border:none;background:none;cursor:pointer;color:inherit}
-input,select,textarea{font-family:inherit;font-size:15px;width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);outline:none}
-input:focus,select:focus{border-color:var(--o)}
-label{font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.hidden{display:none!important}
+  :root{
+    --bg:#0b1512; --card:#122019; --card2:#16261f; --line:#1e332a;
+    --p:#15c98a; --pd:#0da678; --pl:rgba(21,201,138,.12);
+    --ink:#e8f2ed; --muted:#7f948a; --amber:#ffb020; --blue:#4aa3ff; --red:#ff6b6b;
+    --r:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:16px}
 
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 2px 14px}
-.brand{display:flex;align-items:center;gap:8px;font-weight:900;font-size:18px;color:var(--od)}
-.brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 3px 10px rgba(217,108,0,.3)}
-.net-dot{width:9px;height:9px;border-radius:50%;background:#ccc}.net-dot.on{background:var(--ok)}
+  header{position:sticky;top:0;z-index:10;background:rgba(11,21,18,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 16px}
+  .h-in{max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px}
+  .logo .bubble{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--p),var(--pd));display:flex;align-items:center;justify-content:center;font-size:15px}
+  .hq-tag{font-size:11px;font-weight:800;color:var(--muted);background:var(--card2);padding:5px 10px;border-radius:99px;margin-left:2px}
+  .live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--p);background:var(--pl);border:1px solid rgba(21,201,138,.3);padding:7px 13px;border-radius:99px}
+  .live .pt{width:8px;height:8px;border-radius:50%;background:var(--p);animation:blink 1.4s infinite}
+  .live.off{color:var(--red);background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.3)}
+  .live.off .pt{background:var(--red)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
-.panel{margin-bottom:12px}
-.panel > h3{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;font-size:15px}
-.panel > h3 .fold-ic{color:var(--muted);font-size:13px;flex:none;transition:transform .15s}
-.panel.folded > *:not(h3){display:none!important}
-.panel .body{padding:0 16px 16px}
-.btn-main{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,var(--o),var(--od));color:#fff;font-weight:800;font-size:14px;padding:12px 18px;border-radius:12px}
-.btn-line{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line);border-radius:11px;padding:10px 14px;font-weight:700;font-size:13px;background:#fff}
-.btn-ghost{display:inline-flex;padding:8px 11px;border-radius:10px;border:1px dashed var(--line);font-weight:700;font-size:12px;color:var(--muted)}
-.chip{display:inline-block;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:800;background:var(--ob);color:var(--od)}
-.status{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:99px}
-.st-ok{background:#DFF5E9;color:var(--ok)} .st-run{background:#FFF3D6;color:#8A6400} .st-cancel{background:#FBE0E0;color:var(--danger)} .st-info{background:var(--ob);color:var(--od)} .st-blue{background:#DFEBFB;color:#1A5FBD}
-.note{font-size:12px;color:var(--muted);line-height:1.5}
-.kpi{flex:1;min-width:100px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;box-shadow:var(--shadow)}
-.kpi b{display:block;font-size:22px}.kpi span{font-size:10.5px;color:var(--muted);font-weight:800}
-.trow{display:flex;align-items:center;gap:9px;padding:10px 4px;border-bottom:1px dashed var(--line);font-size:13.5px;flex-wrap:wrap}
-.trow:last-child{border-bottom:none}
-.st-seg{display:flex;gap:4px}
-.st-seg button{width:36px;height:36px;border-radius:10px;font-size:16px;border:1.5px solid var(--line);background:#fff}
-.st-seg button.sel-p{background:#DFF5E9;border-color:var(--ok)}
-.st-seg button.sel-r{background:#FBF3E4;border-color:var(--amber,#B4731D)}
-.st-seg button.sel-a{background:#FBE0E0;border-color:var(--danger)}
-.bar-wrap{display:flex;align-items:flex-end;gap:6px;height:82px;padding:8px 4px 0}
-.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
-.bar .fill{width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#F59B23,var(--od));min-height:3px}
-.bar small{font-size:9.5px;color:var(--muted);font-weight:700}
-.empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
-.certs img{max-width:100%;border-radius:12px;border:1.5px solid var(--line);margin-top:6px}
-.two-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:680px){.two-cols{grid-template-columns:1fr}}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 10px}
+  .kpi{background:linear-gradient(160deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:var(--r);padding:16px 14px}
+  .kpi span{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:6px}
+  .kpi b{font-size:24px;font-weight:900;display:block;line-height:1.1}
+  .kpi small{font-size:11px;color:var(--muted);display:block;margin-top:4px}
+  .kpi.green b{color:var(--p)} .kpi.gold b{color:var(--amber)} .kpi.blue b{color:var(--blue)}
+
+  .substrip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .chip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 14px;font-size:12.5px;color:var(--muted);font-weight:700}
+  .chip b{color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;align-items:start}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .panel h3{font-size:13.5px;padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .panel h3 .cnt{margin-left:auto;font-size:11px;color:var(--muted);background:var(--card2);padding:3px 9px;border-radius:99px}
+  .panel .body{padding:6px 0}
+
+  /* Chart */
+  .chart{display:flex;align-items:flex-end;gap:8px;height:110px;padding:16px 18px 6px}
+  .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .bar{width:100%;max-width:44px;background:linear-gradient(180deg,var(--p),rgba(21,201,138,.35));border-radius:7px 7px 3px 3px;min-height:4px;transition:height .6s ease}
+  .bar-lbl{font-size:10px;color:var(--muted);font-weight:700;text-transform:capitalize}
+  .bar-val{font-size:9.5px;color:var(--p);font-weight:800}
+
+  /* Missions */
+  .mrow{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);font-size:13px;animation:fadein .3s}
+  .mrow:last-child{border-bottom:none}
+  @keyframes fadein{from{opacity:0;transform:translateY(-4px)}}
+  .mrow .ic{width:36px;height:36px;border-radius:11px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+  .mrow b{font-size:13.5px;display:block}
+  .mrow small{color:var(--muted);font-size:11.5px;display:block;margin-top:1px}
+  .mrow .right{margin-left:auto;text-align:right;flex-shrink:0}
+  .mrow .right b{color:var(--p);font-size:14px}
+  .mrow .right small{color:var(--muted);font-size:10.5px}
+  .badge{font-size:10px;font-weight:800;padding:4px 9px;border-radius:99px;display:inline-block;margin-top:3px;text-transform:uppercase;letter-spacing:.3px}
+  .b-pending{background:rgba(74,163,255,.15);color:var(--blue)}
+  .b-active{background:rgba(255,176,32,.15);color:var(--amber)}
+  .b-done{background:rgba(21,201,138,.15);color:var(--p)}
+  .b-cancel{background:rgba(255,107,107,.15);color:var(--red)}
+  .empty{padding:34px 18px;text-align:center;color:var(--muted);font-size:13px}
+
+  /* Feed */
+  .feed-item{display:flex;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12.5px;animation:glow 1.6s ease}
+  .feed-item:last-child{border-bottom:none}
+  @keyframes glow{0%{background:rgba(21,201,138,.18)}100%{background:transparent}}
+  .feed-item .t{color:var(--muted);font-size:10.5px;flex-shrink:0;padding-top:2px;font-weight:700;width:42px}
+  .feed-item p{line-height:1.4}
+
+  /* Agents */
+  .agrow{display:flex;align-items:center;gap:11px;padding:11px 16px;border-bottom:1px solid var(--line)}
+  .agrow:last-child{border-bottom:none}
+  .avatar{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--p),var(--pd));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex-shrink:0;position:relative}
+  .doton{position:absolute;bottom:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:var(--p);border:2.5px solid var(--card)}
+  .dotof{position:absolute;bottom:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#4a5d55;border:2.5px solid var(--card)}
+  .agrow b{font-size:13.5px;display:block}
+  .agrow small{color:var(--muted);font-size:11.5px}
+  .agrow .right{margin-left:auto;text-align:right}
+  .agrow .right b{color:var(--p);font-size:13.5px}
+  .agrow .right small{display:block;color:var(--muted)}
+
+  footer{text-align:center;color:var(--muted);font-size:11.5px;padding:26px 0}
+
+  @media (max-width: 760px){
+    .kpis{grid-template-columns:1fr 1fr}
+    .grid{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
-<div class="topbar">
-  <div class="brand"><img src="/ecole-link-icon-192.png"><span>ÉCOLE LINK<small style="display:block;font-size:8.5px;letter-spacing:1px;color:var(--o)">PORTAIL ÉCOLE & PLATEFORME 🟠</small></span></div>
-  <span class="net-dot" id="net-dot"></span>
-</div>
-
-<!-- ═══════ CONNEXION (école / plateforme) ═══════ -->
-<div id="gate">
-  <div class="card" style="max-width:460px;margin:24px auto;padding:20px">
-    <div style="display:flex;gap:6px;margin-bottom:16px">
-      <button class="btn-line" id="g-tab-school" style="flex:1;color:var(--od);border-color:var(--o)" onclick="gateTab('school')">🏫 Je suis de l'école</button>
-      <button class="btn-line" id="g-tab-boss" style="flex:1" onclick="gateTab('boss')">👑 Plateforme</button>
-    </div>
-    <div id="g-school">
-      <h3 style="margin-bottom:6px">Portail de votre école</h3>
-      <p class="note" style="margin-bottom:12px">Directeur, surveillant, professeur principal — accès remis par la plateforme.</p>
-      <div style="margin-bottom:10px"><label>📞 Téléphone</label><input id="gs-tel" type="tel" maxlength="14"></div>
-      <div style="margin-bottom:14px"><label>🔑 Mot de passe</label><input id="gs-pw" type="password"></div>
-      <button class="btn-main" style="width:100%" onclick="schoolLogin()">🔓 Entrer dans mon école</button>
-    </div>
-    <div id="g-boss" class="hidden">
-      <h3 style="margin-bottom:6px">Direction de la plateforme (PDG)</h3>
-      <p class="note" style="margin-bottom:12px">Accès propriétaire — écoles, abonnements, journal.</p>
-      <div style="margin-bottom:14px"><label>🔑 Mot de passe maître</label><input id="gb-pw" type="password"></div>
-      <button class="btn-main" style="width:100%" onclick="bossLogin()">🔓 Ouvrir la plateforme</button>
-      <p class="note" style="margin-top:10px;text-align:center">Première utilisation ? <button style="color:var(--od);font-weight:800;text-decoration:underline" onclick="bossSetup()">⛏️ Initialiser le mot de passe maître</button></p>
-    </div>
+<header>
+  <div class="h-in">
+    <div class="logo"><span class="bubble">✨</span>KLEAN <span class="hq-tag">HQ · Côte d'Ivoire 🇨🇮</span></div>
+    <button onclick="changePwd()" title="Changer le mot de passe" style="margin-left:auto;background:var(--card2);border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:800;padding:6px 11px;border-radius:99px;cursor:pointer;font-family:inherit">🔑 Mot de passe</button>
+    <button onclick="logout()" title="Se déconnecter" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:800;padding:6px 11px;border-radius:99px;cursor:pointer;font-family:inherit">⏻ Quitter</button>
+    <div class="live" id="live-pill"><span class="pt"></span><span id="live-txt">EN DIRECT</span></div>
   </div>
-</div>
+</header>
 
-<!-- ═══════ TABLEAU DE BORD ═══════ -->
-<div id="board" class="hidden">
-  <div class="row" style="margin-bottom:12px">
-    <h1 id="hello" style="font-size:19px;flex:1"></h1>
-    <button class="btn-line" id="btn-pwd" onclick="changePwd()">🔑 Mot de passe</button>
-    <button class="btn-line" onclick="logout()">⏻ Sortir</button>
+<div class="wrap">
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi green"><span>🟢 Professionnels en ligne</span><b id="k-agents">0</b><small id="k-agents-sub">sur 0 professionnel(s)</small></div>
+    <div class="kpi blue"><span>📋 Missions aujourd'hui</span><b id="k-missions">0</b><small id="k-missions-sub">0 en cours</small></div>
+    <div class="kpi"><span>💵 CA aujourd'hui</span><b id="k-ca">0 F</b><small>prestations livrées</small></div>
+    <div class="kpi gold"><span>🏦 Commissions (25%)</span><b id="k-comm">0 F</b><small>encaissées aujourd'hui</small></div>
+  </div>
+  <div class="substrip">
+    <div class="chip">👥 Clients inscrits : <b id="c-inscrits" style="color:var(--blue)">—</b></div>
+    <div class="chip">🛡️ Dossiers en attente : <b id="c-pend" style="color:var(--amber)">—</b></div>
+    <div class="chip">📊 CA total : <b id="c-ca">0 F</b></div>
+    <div class="chip">🏦 Commissions totales : <b id="c-comm">0 F</b></div>
+    <div class="chip">🧧 Reversé aux professionnels : <b id="c-gains">0 F</b></div>
+    <div class="chip">⭐ Note moyenne : <b id="c-note">5,0</b></div>
+    <div class="chip">✅ Missions terminées : <b id="c-done">0</b></div>
+    <div class="chip">👤 Clients inscrits : <b id="c-clients">0</b></div>
+    <div class="chip" id="chip-cands" style="border-color:rgba(255,176,32,.4)">🛡️ Dossiers en attente : <b id="c-cands" style="color:var(--amber)">0</b></div>
   </div>
 
-  <!-- ───── STAFF : aujourd'hui ───── -->
-  <div class="panel card" id="p-stats">
-    <h3>👋 Aujourd'hui <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <div class="row" id="kpis"></div>
-      <p class="note" style="margin-top:8px">Les pointages se font classe par classe, ci-dessous. Chaque absence déclenche l'alerte chez les parents 🔔.</p>
-    </div>
+  <!-- Chart 7 jours -->
+  <div class="panel" id="panel-ca7" style="margin-bottom:14px">
+    <h3>📈 Chiffre d'affaires — 7 derniers jours <span class="cnt" id="chart-total"></span></h3>
+    <div class="chart" id="chart"></div>
   </div>
 
-  <!-- ───── STAFF : pointage ───── -->
-  <div class="panel card" id="p-point">
-    <h3>✅ Pointage de ce matin <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <div class="row" style="margin-bottom:10px">
-        <select id="pt-class" style="flex:1;min-width:170px" onchange="loadPointage()"><option value="">— choisir la classe —</option></select>
-        <button class="btn-ghost" onclick="markAllPresent()">✅ Tous présents</button>
-      </div>
-      <div id="pt-rows"></div>
-      <div id="pt-actions" class="hidden" style="margin-top:12px">
-        <button class="btn-main" style="width:100%" onclick="savePointage()">📤 Enregistrer — et alerter les parents des absents</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ───── STAFF : annonces & convocations ───── -->
-  <div class="panel card" id="p-ann">
-    <h3>📣 Annonces & convocations <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <div class="card" style="background:var(--card2);margin-bottom:12px;padding:12px">
-        <h4 style="font-size:13px;margin-bottom:8px">✍️ Écrire aux parents</h4>
-        <div class="row" style="margin-bottom:8px">
-          <select id="an-cat" style="flex:1;min-width:120px">
-            <option value="info">ℹ️ Information</option>
-            <option value="reunion">📅 Convocation (réunion)</option>
-            <option value="urgent">🚨 Urgent</option>
-          </select>
-          <select id="an-target" style="flex:1;min-width:140px"><option value="">🏫 Toute l'école</option></select>
+  <!-- 👑 Équipe dirigeante — création de gestionnaires (PDG) -->
+  <div class="panel" style="margin-bottom:14px" id="panel-team">
+    <h3>👑 Équipe dirigeante <span class="cnt" id="team-cnt">—</span></h3>
+    <div class="body" style="padding:12px 14px">
+      <div id="team-gate" style="display:none;font-size:12.5px;color:var(--muted);padding:8px 2px">🔒 Vous êtes gestionnaire : la commande de l'équipe est réservée au PDG.</div>
+      <div id="team-form" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="tm-nom" placeholder="👤 Nom complet (ex : John Sery Michael)" style="padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px" maxlength="60">
+          <input id="tm-ident" placeholder="🆔 identifiant (ex : john.sm)" style="padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px" maxlength="40">
         </div>
-        <div id="an-date-row" class="hidden" style="margin-bottom:8px"><label>🕐 Date & heure de la réunion</label><input id="an-date" type="datetime-local"></div>
-        <div style="margin-bottom:8px"><input id="an-title" placeholder="Titre (ex : Réunion des parents CP2)"></div>
-        <div style="margin-bottom:8px"><textarea id="an-body" rows="3" placeholder="Votre message aux parents…"></textarea></div>
-        <button class="btn-main" onclick="sendAnnounce()">📣 Envoyer (avec notification chez les parents)</button>
+        <input id="tm-pw" type="password" placeholder="🔑 Mot de passe (8+ signes · lettre · chiffre · symbole)" style="margin-top:8px;width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px" maxlength="64">
+        <button class="btn-main" style="width:100%;flex:none;margin-top:9px" onclick="createAdmin()">➕ Créer cet administrateur</button>
       </div>
-      <div id="ann-history"></div>
+      <div id="admins"></div>
     </div>
   </div>
 
-  <!-- ───── STAFF : classes & élèves ───── -->
-  <div class="panel card" id="p-classes">
-    <h3>🏫 Classes & élèves <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <div class="two-cols">
-        <div>
-          <div class="card" style="background:var(--card2);padding:12px;margin-bottom:10px">
-            <h4 style="font-size:13px;margin-bottom:8px">➕ Nouvelle classe <span class="note">(directeur)</span></h4>
-            <div class="row"><input id="cl-nom" placeholder="Ex : CP2, CM1…"><button class="btn-main" style="flex:none" onclick="createClass()">Créer</button></div>
-          </div>
-          <div class="card" style="background:var(--card2);padding:12px">
-            <h4 style="font-size:13px;margin-bottom:8px">🧒 Inscrire un élève</h4>
-            <div class="grid2" style="margin-bottom:8px">
-              <input id="st-prenom" placeholder="Prénom *"><input id="st-nom" placeholder="Nom *">
-            </div>
-            <div class="row" style="margin-bottom:8px">
-              <select id="st-sex" style="flex:none;width:86px"><option value="">Sexe</option><option value="F">F</option><option value="M">M</option></select>
-              <select id="st-class" style="flex:1"></select>
-            </div>
-            <button class="btn-main" style="width:100%" onclick="createStudent()">🏷️ Créer + obtenir le CODE famille</button>
-          </div>
-        </div>
-        <div>
-          <div class="row" style="margin-bottom:8px"><select id="el-class" style="flex:1" onchange="loadStudents()"><option value="">👀 Toutes les classes</option></select></div>
-          <div id="el-list"></div>
+  <!-- 📣 Affiche pour tous les utilisateurs (mise à jour, information, annonce) -->
+  <div class="panel" style="margin-bottom:14px" id="panel-ann">
+    <h3>📣 Affiche à tous les utilisateurs</h3>
+    <div class="body" style="padding:12px 14px">
+      <input id="ann-msg" maxlength="240" placeholder="Ex : Mise à jour ce soir à 22 h — 5 minutes d'interruption" style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px">
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <select id="ann-type" style="flex:1;min-width:130px;padding:10px 11px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12px">
+          <option value="maj">✨ Mise à jour</option>
+          <option value="info">ℹ️ Information</option>
+          <option value="alerte">⚠️ Importante</option>
+        </select>
+        <button class="btn-main" style="flex:none" onclick="publierAnnonce()">📢 Publier</button>
+        <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:11px;font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="retirerAnnonce()">✕ Retirer</button>
+      </div>
+      <small id="ann-cur" style="display:block;margin-top:9px;color:var(--muted)">Aucune affiche en cours.</small>
+    </div>
+  </div>
+
+  <!-- 💬 Support interne — conversations clients & pros (gestionnaire inclus) -->
+  <div class="panel" style="margin-bottom:14px" id="panel-support">
+    <h3>💬 Support & messages <span class="cnt" id="sup-cnt">—</span></h3>
+    <div class="body" style="padding:12px 14px">
+      <div id="sup-convs"></div>
+      <div id="sup-chat" style="display:none;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px">
+        <div id="sup-msgs" style="max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:9px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="sup-input" placeholder="Répondre (signé à votre nom)…" maxlength="400" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px">
+          <button class="btn-main" style="flex:none" onclick="supReply()">Envoyer</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ───── STAFF : absences reçues ───── -->
-  <div class="panel card" id="p-abs">
-    <h3>🤒 Absences signalées par les parents <span class="fold-ic">▾</span></h3>
-    <div class="body"><div id="abs-list"></div></div>
+  <!-- Dossiers agents à vérifier -->
+  <div class="panel" style="margin-bottom:14px" id="panel-cands">
+    <h3>🛡️ Vérification des professionnels <span class="cnt" id="cand-cnt">0 en attente</span></h3>
+    <div class="body" id="cands"><div class="empty">Aucun dossier en attente. Les candidatures de professionnels apparaîtront ici pour vérification.</div></div>
   </div>
 
-  <!-- ───── STAFF : tendance ───── -->
-  <div class="panel card" id="p-stats7">
-    <h3>📊 Absentéisme — 7 jours <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <div class="bar-wrap" id="bars"></div>
-      <p class="note" style="margin-top:6px">% d'absents parmi les élèves pointés, jour par jour.</p>
+  <!-- Réglages PDG : commission pilotable -->
+  <div class="panel" style="margin-bottom:14px" id="panel-hqchat">
+    <h3>🟠 Fil PDG ↔ gestionnaires <span class="cnt" id="hqchat-cnt">—</span></h3>
+    <div class="body" style="padding:12px 14px">
+      <div id="hqchat-msgs" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="hqchat-in" placeholder="Écrire au PDG / au gestionnaire…" maxlength="400" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;font-size:12.5px">
+        <button class="btn-main" style="flex:none" onclick="sendHqChat()">Envoyer</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:14px;display:none" id="panel-promo">
+    <h3>🎟️ Codes promo & partenaires</h3>
+    <div class="body" style="padding:12px 14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <input id="pr-code" placeholder="CODE" maxlength="20" style="padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit">
+        <input id="pr-days" type="number" placeholder="Durée (j)" min="1" value="30" style="padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit">
+        <input id="pr-uses" type="number" placeholder="Nb d'usages" min="1" value="10" style="padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit">
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0;font-size:12px"><input type="checkbox" id="pr-unique"> Usage unique</label>
+      <button class="btn-main" onclick="createPromo()">Créer le code</button>
+      <div id="promo-list" style="margin-top:10px"></div>
+      <h4 style="margin:14px 0 8px;font-size:13px">🤝 Partenaires pub</h4>
+      <div style="display:flex;gap:8px"><input id="pt-nom" placeholder="Nom partenaire" style="flex:1;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit"><input id="pt-tel" placeholder="Tél" style="width:120px;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit"><button class="btn-main" style="flex:none" onclick="createPartner()">Ouvrir</button></div>
+      <div id="partner-list" style="margin-top:8px"></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:14px;display:none" id="panel-paydest">
+    <h3>💳 Numéros de paiement</h3>
+    <div class="body" style="padding:12px 14px">
+      <input id="pay-wave" placeholder="Wave (séparés par virgule)" style="width:100%;margin-bottom:8px;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit">
+      <input id="pay-om" placeholder="Orange Money" style="width:100%;margin-bottom:8px;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit">
+      <input id="pay-moov" placeholder="Moov" style="width:100%;margin-bottom:8px;padding:10px;border-radius:9px;border:1.5px solid var(--line);background:var(--card2);color:var(--ink);font:inherit">
+      <label style="font-size:12px;display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" id="pay-hide"> Masquer les numéros côté clients</label>
+      <button class="btn-main" onclick="savePayDest()">Enregistrer</button>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:14px;display:none" id="panel-trash">
+    <h3>♻️ Récupération de comptes supprimés</h3>
+    <div class="body" id="trash-list" style="padding:12px 14px"><div class="empty">Vide</div></div>
+  </div>
+  <div class="panel" style="margin-bottom:14px" id="panel-cfg">
+    <h3>⚙️ Réglages plateforme (PDG)</h3>
+    <div style="padding:14px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12.5px;color:var(--muted);font-weight:700">💰 Commission par mission :</label>
+      <input id="cfg-comm" type="number" min="0" max="50" step="1" style="width:76px;background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;text-align:center;font-weight:800">
+      <span style="font-weight:900">%</span>
+      <button onclick="saveComm()" style="background:var(--p);border:none;color:#04130c;font-weight:900;padding:9px 16px;border-radius:10px;cursor:pointer;font-family:inherit">Enregistrer</button>
+      <small style="color:var(--muted);font-size:11.5px">applied aux nouvelles missions</small>
+    </div>
+    <div style="padding:0 16px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12.5px;color:var(--muted);font-weight:700">📡 Rayon de recherche des pros :</label>
+      <input id="cfg-reach" type="number" min="1" max="80" step="1" style="width:76px;background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;text-align:center;font-weight:800">
+      <span style="font-weight:900">km</span>
+      <small style="color:var(--muted);font-size:11.5px">GPS : seuls les pros dans ce rayon voient la demande en priorité</small>
     </div>
   </div>
 
-  <!-- ══════════ PDG ══════════ -->
-  <div class="panel card hidden" id="p-boss-schools">
-    <h3>🏫 Écoles de la plateforme <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <div class="row" style="margin-bottom:10px"><input id="bs-nom" placeholder="Nom de la nouvelle école *" style="flex:1"><button class="btn-main" style="flex:none" onclick="createSchool()">🏷️ Ajouter l'école</button></div>
-      <div id="boss-schools"></div>
-    </div>
+  <!-- Journal d'audit -->
+  <div class="panel" style="margin-bottom:14px" id="panel-audit">
+    <h3>📜 Journal d'audit <span class="cnt" id="audit-cnt">—</span></h3>
+    <div class="body" id="audit"><div class="empty">—</div></div>
   </div>
-  <div class="panel card hidden" id="p-boss-staff">
-    <h3>🧑‍🏫 Comptes guidés (directeur / personnel) <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <p class="note" style="margin-bottom:8px">Créez l'accès de la direction : le mot de passe est généré et remis EN MAIN PROPRE (affiché une fois).</p>
-      <div class="grid2" style="margin-bottom:8px">
-        <div><label>École</label><select id="bst-school"></select></div>
-        <div><label>Rôle</label><select id="bst-role"><option value="directeur">👔 Directeur</option><option value="surveillant">🧢 Surveillant</option><option value="professeur">📚 Professeur principal</option></select></div>
+
+  <!-- Toutes les personnes inscrites (agents + clients) avec recherche -->
+  <div class="panel" style="margin-bottom:14px">
+    <h3>👥 Personnes inscrites <span class="cnt" id="people-cnt">—</span></h3>
+    <div style="padding:10px 16px 0;display:flex;gap:8px;flex-wrap:wrap">
+      <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="toggleAcctForm('client')">➕ Créer un compte client</button>
+      <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:11.5px;font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="toggleAcctForm('pro')">➕ Créer un compte pro</button>
+    </div>
+    <div id="acct-client" style="display:none;padding:10px 16px 0">
+      <div style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 12px">
+        <b style="font-size:12px">🏗️ Compte client guidé</b><br>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <input id="acc-nom" placeholder="👤 Nom complet *" maxlength="60" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <input id="acc-tel" placeholder="📞 Téléphone *" maxlength="16" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <input id="acc-quartier" placeholder="📍 Quartier" maxlength="40" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <input id="acc-ville" placeholder="🏙️ Ville (libre — ex : Kounahiri)" maxlength="40" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+        </div>
+        <input id="acc-mail" placeholder="✉️ E-mail (facultatif)" maxlength="60" style="margin-top:8px;width:100%;padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+        <input id="acc-pw" placeholder="🔑 Mot de passe (vide = généré automatiquement)" maxlength="64" style="margin-top:8px;width:100%;padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+        <button class="btn-main" style="width:100%;margin-top:9px" onclick="createClientHQ()">🏗️ Ouvrir le compte client</button>
       </div>
-      <div class="grid2" style="margin-bottom:10px">
-        <input id="bst-nom" placeholder="Nom complet *"><input id="bst-tel" placeholder="📞 Téléphone *">
+    </div>
+    <div id="acct-pro" style="display:none;padding:10px 16px 0">
+      <div style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 12px">
+        <b style="font-size:12px">🧑‍💼 Compte professionnel guidé <span style="color:var(--muted);font-weight:600">(validé d'office par vous)</span></b><br>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <input id="acp-prenom" placeholder="Prénom *" maxlength="40" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <input id="acp-nom" placeholder="Nom *" maxlength="40" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <input id="acp-tel" placeholder="📞 Tél. principal *" maxlength="16" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <input id="acp-quartier" placeholder="📍 Quartier" maxlength="40" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <input id="acp-ville" placeholder="🏙️ Ville (libre)" maxlength="40" style="padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+        </div>
+        <input id="acp-mail" placeholder="✉️ E-mail (facultatif)" maxlength="60" style="margin-top:8px;width:100%;padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+        <select id="acp-service" style="margin-top:8px;width:100%;padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px">
+          <option value="maison">🧹 Ménage maison</option><option value="bureaux">🏢 Bureaux</option><option value="canapes">🛋️ Canapés & tapis</option><option value="vitres">🪟 Vitres</option><option value="grand">🏰 Grand ménage</option><option value="plomberie">🔧 Plomberie</option><option value="electricite">💡 Électricité</option><option value="clim">❄️ Climatisation</option><option value="serrurerie">🔐 Serrurerie</option><option value="jardinage">🌿 Jardinage</option><option value="lavageauto">🚗 Lavage auto</option><option value="bricolage">🛠️ Bricolage</option><option value="demen">📦 Déménagement</option><option value="cuisine">🍽️ Cuisinier</option><option value="cours">📚 Cours à domicile</option><option value="custom">✨ Demande sur mesure</option>
+        </select>
+        <button class="btn-main" style="width:100%;margin-top:9px" onclick="createProHQ()">🏗️ Ouvrir le compte pro (validation immédiate)</button>
       </div>
-      <button class="btn-main" onclick="createStaff()">🤝 Créer l'accès</button>
-      <div id="boss-staff" style="margin-top:10px"></div>
     </div>
+    <div style="padding:12px 16px 4px">
+      <input id="people-search" placeholder="🔍 Rechercher par nom, téléphone, quartier, service…"
+        oninput="renderPeople()" style="width:100%;background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 13px;font-size:13.5px;font-family:inherit">
+    </div>
+    <div class="body" id="people"><div class="empty">Chargement des inscrits…</div></div>
   </div>
-  <div class="panel card hidden" id="p-boss-cfg">
-    <h3>⚙️ Tarif famille (PDG) <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <p class="note" style="margin-bottom:10px">Mettez <b>0 F</b> pour rendre l'app <b>gratuite</b> pour toutes les familles. Un prix &gt; 0 = payant (Wave / OM / MTN). L'essai s'applique uniquement en mode payant.</p>
-      <div class="grid2" style="margin-bottom:10px">
-        <div><label>💰 Prix annuel par famille (F) — 0 = gratuit</label><input id="cfg-price" type="number" min="0" max="500000" step="500"></div>
-        <div><label>🎁 Jours d'essai (0 à 365)</label><input id="cfg-trial" type="number" min="0" max="365" step="1"></div>
+
+  <div class="grid">
+    <!-- Missions live -->
+    <div class="panel">
+      <h3>🧾 Missions <span class="cnt" id="m-cnt">—</span></h3>
+      <div class="body" id="missions"><div class="empty">Aucune mission pour le moment</div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- Journal temps réel -->
+      <div class="panel">
+        <h3>⚡ Journal temps réel</h3>
+        <div class="body" id="feed"><div class="empty">En attente d'événements…<br>Les demandes apparaîtront ici en direct.</div></div>
       </div>
-      <button class="btn-main" onclick="saveTarif()">💾 Enregistrer le tarif</button>
-      <p class="note" id="cfg-hint" style="margin-top:8px"></p>
+      <!-- Professionnels -->
+      <div class="panel">
+        <h3>🧑‍💼 Professionnels <span class="cnt" id="a-cnt">—</span></h3>
+        <div class="body" id="agents"><div class="empty">Aucun professionnel inscrit</div></div>
+      </div>
     </div>
   </div>
-  <div class="panel card hidden" id="p-boss-parents">
-    <h3>👨‍👩‍👧 Comptes familles — bloquer / supprimer <span class="fold-ic">▾</span></h3>
-    <div class="body">
-      <p class="note" style="margin-bottom:8px">Vous pilotez à distance. Un parent impoli : 🔒 bloquer (il ne rentre plus) ou 🗑️ supprimer (définitif).</p>
-      <input id="par-search" placeholder="🔍 Nom ou téléphone…" oninput="renderBossParents()" style="margin-bottom:10px">
-      <div id="boss-parents"></div>
-    </div>
-  </div>
-  <div class="panel card hidden" id="p-boss-pay">
-    <h3>💳 Abonnements à valider <span class="fold-ic">▾</span></h3>
-    <div class="body"><div id="boss-pay"></div></div>
-  </div>
-  <div class="panel card hidden" id="p-boss-stats">
-    <h3>📊 Vue globale plateforme <span class="fold-ic">▾</span></h3>
-    <div class="body"><div class="row" id="boss-kpis"></div></div>
-  </div>
-  <div class="panel card hidden" id="p-boss-audit">
-    <h3>📜 Journal de la plateforme <span class="fold-ic">▾</span></h3>
-    <div class="body"><div id="boss-audit"></div></div>
-  </div>
+
+  <footer>KLEAN HQ — pilotez votre flotte dans toute la Côte d'Ivoire · les données se mettent à jour en temps réel ⚡</footer>
 </div>
-
-<div id="toast" style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2B2417;color:#fff;padding:11px 18px;border-radius:99px;font-size:13px;font-weight:700;z-index:99;opacity:0;transition:opacity .2s;max-width:88%;text-align:center"></div>
 
 <script>
-'use strict';
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-function toast(m){const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(t._to);t._to=setTimeout(()=>t.style.opacity=0,2800);}
-let who=null;            // {role:'staff'|'boss', nom, school?, role?}
-let classes=[], studentsCache=[], meData=null;
-let ptSel={}, ptClassId=null;
+const SVC = {maison:'🏠',bureaux:'🏢',canapes:'🛋️',vitres:'🪟',demenagement:'🧼',sdb:'🚿',grand:'🧹'};
+const SVC_N = {maison:'Maison',bureaux:'Bureaux',canapes:'Canapés',vitres:'Vitres',demenagement:'Après dém.',sdb:'SDB',grand:'Grand ménage',plomberie:'Plomberie',electricite:'Électricité',clim:'Climatisation',serrurerie:'Serrurerie',electro:'Électroménager',jardinage:'Jardinage',lavageauto:'Lavage auto',bricolage:'Bricolage',demen:'Déménagement',cuisine:'Cuisinier',cours:'📚 Cours ou formation à domicile',canal:'📡 Canal+ domicile',evenement:'🎉 Après événement',entretien:'🗓️ Entretien régulier',placement:'👥 Placement',custom:'🛠️ Demande sur mesure'};
+const fmt = n => Math.round(n||0).toLocaleString('fr-FR')+' F';
+const hhmm = iso => iso ? new Date(iso).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+const STATUS = {
+  pending:['b-pending','En diffusion'], accepted:['b-active','Acceptée'], enroute:['b-active','En route 🛵'],
+  arrive:['b-active','Arrivé'], encours:['b-active','En cours 🧽'], terminee:['b-done','Terminée'], annulee:['b-cancel','Annulée']
+};
+const PAYTAG = {wave:'🌊 Wave', om:'🟠 Orange Money', moov:'🔵 Moov', cash:'💵 Espèces', mtn:'🟡 MTN'};
+let feedStarted = false;
+let DEMO = false;
 
-/* ─── volets pliables (mémoire par appareil) ─── */
-(function(){
-  const KEY='el_fold_v1';
-  const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return{}}};
-  const save=m=>{try{localStorage.setItem(KEY,JSON.stringify(m))}catch(e){}};
-  const FOLDED=['classes','abs','stats7','audit','stats'];
-  function refresh(){
-    const mem=load();
-    document.querySelectorAll('.panel').forEach((p,i)=>{
-      const h3=p.querySelector('h3'); if(!h3) return;
-      const k=p.id||('p'+i);
-      let ic=h3.querySelector('.fold-ic');
-      if(!ic){ ic=document.createElement('span'); ic.className='fold-ic'; h3.appendChild(ic);
-        h3.addEventListener('click',()=>{ const f=!p.classList.contains('folded'); p.classList.toggle('folded',f); const m=load(); m[k]=f; save(m); ic.textContent=f?'▸':'▾'; });
-      }
-      const folded=(k in mem)?mem[k]:FOLDED.some(f=>k.toLowerCase().includes(f));
-      p.classList.toggle('folded',folded); ic.textContent=folded?'▸':'▾';
-    });
-  }
-  window.addEventListener('load',refresh);
-})();
-
-/* ─── connexion ─── */
-function gateTab(t){ $('#g-tab-school').style.opacity=t==='school'?1:.55; $('#g-tab-boss').style.opacity=t==='boss'?1:.55; $('#g-school').classList.toggle('hidden',t!=='school'); $('#g-boss').classList.toggle('hidden',t!=='boss'); }
-async function schoolLogin(){
-  const tel=$('#gs-tel').value.replace(/\D/g,''), pw=$('#gs-pw').value;
-  if(tel.length<8||!pw) return toast('Téléphone + mot de passe requis');
-  const r=await fetch('/api/school/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tel,password:pw})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'accès refusé'));
-  who={role:'staff',nom:d.nom,school:d.school,srole:d.role};
-  enter();
-}
-async function bossLogin(){
-  const pw=$('#gb-pw').value;
-  if(!pw) return toast('Mot de passe requis');
-  const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'accès refusé'));
-  who={role:'boss',nom:'Maître'};
-  enter();
-}
-async function bossSetup(){
-  const pw=prompt('⛏️ Choisissez le MOT DE PASSE MAÎTRE (8+ caractères, lettre + chiffre)'); if(!pw) return;
-  const r=await fetch('/api/admin/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'déjà initialisé — connectez-vous'));
-  who={role:'boss',nom:'Maître'}; toast('👑 Bienvenue, Directeur.'); enter();
-}
-async function logout(){ await fetch('/api/logout',{method:'POST'}); location.reload(); }
-
-/* ─── entrée ─── */
-function enter(){
-  $('#gate').classList.add('hidden'); $('#board').classList.remove('hidden');
-  $('#net-dot').classList.add('on');
-  const staffPanels=['p-stats','p-point','p-ann','p-classes','p-abs','p-stats7'];
-  const bossPanels=['p-boss-schools','p-boss-staff','p-boss-cfg','p-boss-parents','p-boss-pay','p-boss-stats','p-boss-audit'];
-  const pwd=$('#btn-pwd'); if(pwd) pwd.classList.toggle('hidden', who.role!=='boss');
-  staffPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='staff'));
-  bossPanels.forEach(id=>$('#'+id).classList.toggle('hidden', who.role!=='boss'));
-  if(who.role==='staff'){ $('#hello').textContent='🏫 '+who.school+' — '+who.nom+' ('+who.srole+')'; staffBoot(); }
-  else{ $('#hello').textContent='👑 ÉCOLE LINK — votre plateforme'; bossBoot(); }
+/* ─── MODE DÉMO (aperçu sans serveur : données d'exemple) ─── */
+function enterDemo(){
+  if(DEMO) return;
+  DEMO = true;
+  renderOverview({
+    agentsEnLigne:2, agentsTotal:5, missionsToday:8, missionsActive:2,
+    missionsTotal:37, missionsDone:29,
+    caToday:47000, caTotal:231500, commToday:11750, commTotal:57875,
+    gainAgentsTotal:173625, noteMoyenne:4.8,
+    ca7:[{day:'lun',ca:18000,n:3},{day:'mar',ca:0,n:0},{day:'mer',ca:25500,n:4},{day:'jeu',ca:12000,n:2},{day:'ven',ca:31500,n:5},{day:'sam',ca:44000,n:7},{day:'dim',ca:47000,n:8}]
+  });
+  renderMissions([
+    {id:'KN-DEMO08',service:'vitres',quartier:'Commerce',time:'10:00',pieces:2,prixTotal:9000,comm:2250,status:'pending',client:'Salimata',agent:null,at:new Date(Date.now()-6*60000).toISOString()},
+    {id:'KN-DEMO07',service:'maison',quartier:'Koko',time:'09:00',pieces:2,prixTotal:10400,comm:2600,status:'encours',client:'Awa',agent:'Koffi',at:new Date(Date.now()-34*60000).toISOString()},
+    {id:'KN-DEMO06',service:'grand',quartier:'Nimbo',time:'14:00',pieces:3,prixTotal:22400,comm:5600,status:'accepted',client:'Moussa',agent:'Mariam',at:new Date(Date.now()-48*60000).toISOString()},
+    {id:'KN-DEMO05',service:'sdb',quartier:'Air France',time:'11:00',pieces:1,prixTotal:6500,comm:1625,status:'terminee',client:'Konan',agent:'Koffi',at:new Date(Date.now()-3*3600000).toISOString()},
+    {id:'KN-DEMO04',service:'canapes',quartier:'Belleville',time:'15:00',pieces:3,prixTotal:7800,comm:1950,status:'terminee',client:'Nadia',agent:'Mariam',at:new Date(Date.now()-4*3600000).toISOString()},
+    {id:'KN-DEMO03',service:'maison',quartier:'Dar-Es-Salam',time:'08:00',pieces:4,prixTotal:15200,comm:3800,status:'terminee',client:'Yaya',agent:'Adama',at:new Date(Date.now()-5*3600000).toISOString()},
+    {id:'KN-DEMO02',service:'bureaux',quartier:'Commerce',time:'16:00',pieces:4,prixTotal:22800,comm:5700,status:'terminee',client:'Pharmacie du Centre',agent:'Koffi',at:new Date(Date.now()-6*3600000).toISOString()},
+    {id:'KN-DEMO01',service:'demenagement',quartier:'Kennedy',time:'09:00',pieces:5,prixTotal:30000,comm:7500,status:'annulee',client:'Serge',agent:null,at:new Date(Date.now()-8*3600000).toISOString()}
+  ]);
+  renderAgents([
+    {nom:'Koffi',quartier:'Nimbo',online:true,missionsDone:12,gain:84000,rating:4.9},
+    {nom:'Mariam',quartier:'Koko',online:true,missionsDone:9,gain:61500,rating:4.8},
+    {nom:'Adama',quartier:'Commerce',online:false,missionsDone:6,gain:39000,rating:4.7},
+    {nom:'Awa',quartier:'Belleville',online:false,missionsDone:2,gain:10500,rating:5.0},
+    {nom:'Siaka',quartier:'Air France',online:false,missionsDone:0,gain:0,rating:5.0}
+  ]);
+  ['📥 Nouvelle demande KN-DEMO08 — vitres · Commerce · 9 000 F',
+   '✅ Mariam a accepté la mission KN-DEMO06 (22 400 F)',
+   '🧽 KN-DEMO07 : nettoyage en cours',
+   '✅ KN-DEMO05 terminée — +1 625 F de commission',
+   '🟢 Mariam en ligne (Koko) — 2 professionnel(s) en ligne'].forEach(addFeed);
+  const b = document.createElement('div');
+  b.style.cssText = 'background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.45);color:#ffb020;font-size:12px;font-weight:800;padding:10px 14px;border-radius:12px;margin:14px 0 2px;text-align:center';
+  b.textContent = '🧪 MODE DÉMO — chiffres d\'exemple. Le vrai HQ affichera les données en direct une fois le serveur en ligne.';
+  const w = document.querySelector('.wrap');
+  w.insertBefore(b, w.firstChild);
 }
 
-/* ══════ STAFF ══════ */
-async function staffBoot(){await Promise.all([loadMe(), loadAnnouncements(), loadAbsences()]); loadStudents();}
-async function loadMe(){
-  const r=await fetch('/api/school/me'); if(!r.ok) return;
-  meData=await r.json(); classes=meData.classes||[];
-  const t=meData.today||{};
-  $('#kpis').innerHTML=
-    `<div class="kpi"><b style="color:var(--ok)">${t.presents||0}</b><span>présents</span></div>
-     <div class="kpi"><b style="color:var(--danger)">${t.absents||0}</b><span>absents</span></div>
-     <div class="kpi"><b style="color:#B4731D">${t.retards||0}</b><span>retards</span></div>
-     <div class="kpi"><b>${t.nonPointes||0}</b><span>non pointés</span></div>`;
-  const opts=classes.map(c=>`<option value="${c.id}">${c.nom} (${c.effectif})${c.pointe?' ✓':''}</option>`).join('');
-  $('#pt-class').innerHTML='<option value="">— choisir la classe —</option>'+opts;
-  $('#st-class').innerHTML=classes.map(c=>`<option value="${c.id}">${c.nom}</option>`).join('')||'<option value="">— créez d\'abord une classe —</option>';
-  $('#an-target').innerHTML='<option value="">🏫 Toute l\'école</option>'+classes.map(c=>`<option value="${c.id}">🎒 Classe ${c.nom}</option>`).join('');
-  const bars=(meData.stats7||[]).map(d=>`<div class="bar"><div class="fill" style="height:${d.taux==null?3:Math.max(3, d.taux)}%"></div><small>${d.date}</small><small>${d.taux==null?'—':d.taux+'%'}</small></div>`).join('');
-  $('#bars').innerHTML=bars||'<p class="note">Pas encore de pointage — les barres pousseront dès demain.</p>';
+async function fetchJ(url){
+  const r = await fetch(url);
+  if(r.status === 401){ location.href = '/admin-login.html'; throw 0; }
+  if(!r.ok) throw 0;
+  return r.json();
 }
-async function createClass(){
-  const nom=$('#cl-nom').value.trim(); if(!nom) return toast('Nom de classe ?');
-  const r=await fetch('/api/school/classes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  $('#cl-nom').value=''; toast('🏫 Classe créée ✓'); loadMe();
-}
-async function createStudent(){
-  const prenom=$('#st-prenom').value.trim(), nom=$('#st-nom').value.trim(), classId=$('#st-class').value;
-  if(prenom.length<2||nom.length<2||!classId) return toast('Prénom + nom + classe requis');
-  const r=await fetch('/api/school/students',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prenom,nom,sex:$('#st-sex').value,classId})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  alert('🤝 ÉLÈVE INSCRIT — remettez ce CODE FAMILLE aux parents (WhatsApp ou papier) :\n\n    🔑 '+d.code+'\n\nDans l\'app ÉCOLE LINK : « Compte → Lier un enfant ».\nLe code fonctionne UNE SEULE FOIS, puis s\'efface.');
-  $('#st-prenom').value=''; $('#st-nom').value='';
-  loadMe(); loadStudents();
-}
-async function loadStudents(){
-  const cid=$('#el-class').value;
-  const r=await fetch('/api/school/students'+(cid?'?classId='+cid:''));
-  if(!r.ok) return;
-  studentsCache=await r.json();
-  $('#el-class').innerHTML='<option value="">👀 Toutes les classes</option>'+classes.map(c=>`<option value="${c.id}" ${c.id===cid?'selected':''}>${c.nom}</option>`).join('');
-  $('#el-list').innerHTML=studentsCache.length?studentsCache.map(s=>`
-    <div class="trow">
-      <span style="font-size:18px">${s.lie?'✅':'⏳'}</span>
-      <span style="flex:1"><b>${s.prenom} ${s.nom}</b> <span class="note">${s.classe}</span></span>
-      ${s.lie
-        ? '<span class="status st-ok">famille liée</span>'
-        : (s.code ? `<button class="btn-ghost" onclick="copy('${s.code}')">🔑 ${s.code} — copier</button>` : `<button class="btn-ghost" onclick="regen('${s.id}')">🔁 nouveau code</button>`)}
-    </div>`).join(''):'<p class="empty">Aucun élève — inscrivez-en à gauche ⬅️</p>';
-}
-function copy(c){ (navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast('📋 Code copié ✓')).catch(()=>prompt('Copiez ce code :',c)); }
-async function regen(id){
-  const r=await fetch('/api/school/students/regen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({studentId:id})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ impossible');
-  alert('🔁 NOUVEAU code famille : '+d.code+'\n\nL\'ancien ne marche plus — remettez celui-ci.');
-  loadStudents();
-}
-
-/* ─── pointage ─── */
-async function loadPointage(){
-  ptClassId=$('#pt-class').value; ptSel={};
-  const box=$('#pt-rows'); if(!ptClassId){box.innerHTML='';$('#pt-actions').classList.add('hidden');return;}
-  const studs = studentsCache.some(s=>s.classId===ptClassId) ? studentsCache.filter(s=>s.classId===ptClassId)
-    : await (await fetch('/api/school/students?classId='+ptClassId)).json();
+async function loadAll(){
   try{
-    const r2=await fetch('/api/school/attendance?classId='+ptClassId);
-    const exist=await r2.json();
-    if(exist && exist.rows) exist.rows.forEach(r=>ptSel[r.studentId]=r.status);
-  }catch(e){}
-  box.innerHTML=studs.length?studs.map(s=>{
-    const cur=ptSel[s.id]||'present'; if(!(s.id in ptSel)) ptSel[s.id]='present';
-    return `<div class="trow">
-      <span style="flex:1"><b>${s.prenom} ${s.nom}</b></span>
-      <span class="st-seg">
-        <button class="${cur==='present'?'sel-p':''}" title="Présent" onclick="ptSet('${s.id}','present',this)">✅</button>
-        <button class="${cur==='retard'?'sel-r':''}" title="Retard" onclick="ptSet('${s.id}','retard',this)">⏰</button>
-        <button class="${cur==='absent'?'sel-a':''}" title="Absent" onclick="ptSet('${s.id}','absent',this)">🚨</button>
-      </span>
-    </div>`;
-  }).join(''):'<p class="empty">Aucun élève dans cette classe — inscrivez-en d\'abord (panneau « Classes & élèves »).</p>';
-  $('#pt-actions').classList.toggle('hidden', !studs.length);
-}
-function ptSet(id, st, btn){ ptSel[id]=st; const seg=btn.closest('.st-seg'); seg.querySelectorAll('button').forEach(b=>b.className=''); btn.className = st==='present'?'sel-p': st==='retard'?'sel-r':'sel-a'; }
-function markAllPresent(){ Object.keys(ptSel).forEach(k=>ptSel[k]='present'); loadPointageRedone(); toast('✅ Tous présents — prêt à envoyer'); }
-function loadPointageRedone(){ /* re-render with current sel without refetch */ const sid=ptClassId; $$('#pt-rows .trow').forEach(()=>{}); loadPointage(); }
-async function savePointage(){
-  const ids=Object.keys(ptSel); if(!ids.length) return;
-  if(!confirm('📤 Enregistrer le pointage ?\nLes parents des ABSENTS recevront l\'alerte aussitôt.')) return;
-  const r=await fetch('/api/school/attendance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({classId:ptClassId,rows:ids.map(id=>({studentId:id,status:ptSel[id]}))})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  toast('✅ Pointage enregistré — parents alertés 🔔');
-  loadMe();
-}
-
-/* ─── annonces ─── */
-$('#an-cat') && $('#an-cat').addEventListener('change',()=>{ $('#an-date-row').classList.toggle('hidden', $('#an-cat').value!=='reunion'); });
-async function sendAnnounce(){
-  const t=$('#an-title').value.trim(); if(!t) return toast('Un titre ?');
-  const body={title:t, body:$('#an-body').value.trim(), cat:$('#an-cat').value, targetClassId:$('#an-target').value||null};
-  if(body.cat==='reunion' && $('#an-date').value) body.reunionAt=$('#an-date').value.slice(0,10);
-  const r=await fetch('/api/school/announce',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  toast('📣 Envoyé à '+d.cibles+' famille(s) 🔔');
-  $('#an-title').value=''; $('#an-body').value='';
-  loadAnnouncements();
-}
-async function loadAnnouncements(){
-  const r=await fetch('/api/school/announce'); if(!r.ok) return;
-  const rows=await r.json();
-  $('#ann-history').innerHTML=rows.length?rows.map(a=>{
-    const c=a.cat==='urgent'?'<span class="status st-cancel">🚨 URGENT</span>':a.cat==='reunion'?'<span class="status st-blue">📅 CONVOCATION</span>':'<span class="status st-info">ℹ️ INFO</span>';
-    return `<div class="trow" style="align-items:flex-start">
-      <span style="flex:1">${c} <b>${a.title}</b><br><span class="note">${(a.body||'').slice(0,110)}${a.reunionAt?' · 🕐 '+a.reunionAt:''}</span></span>
-      <span style="flex:none;text-align:right;font-size:11px" class="note">📨 ${a.stats.cible}<br>👁️ ${a.stats.reads} vus<br>📩 ${a.stats.acks||0} reçus<br>✅ ${a.stats.oui} · ❌ ${a.stats.non}</span>
-      <button class="btn-ghost" onclick="showReceipts('${a.id}')">👥 Qui a vu</button>
-    </div>`;
-  }).join(''):'<p class="empty">Aucune annonce envoyée.</p>';
-}
-
-/* ─── absences reçues ─── */
-async function loadAbsences(){
-  const r=await fetch('/api/school/absences'); if(!r.ok) return;
-  const rows=await r.json();
-  $('#abs-list').innerHTML=rows.length?rows.map(x=>`
-    <div class="trow" style="align-items:flex-start">
-      <span style="font-size:18px">${x.kind==='maladie'?'🤒':x.kind==='famille'?'👨‍👩‍👧':x.kind==='voyage'?'✈️':'📝'}</span>
-      <span style="flex:1"><b>${x.enfant}</b> — absent(e) le ${x.from}${x.to!==x.from?' → '+x.to:''}<br>
-        <span class="note">${x.parent||'Parent'} · motif : ${x.kind}${x.note?' — '+x.note:''}</span>
-        ${x.certPhoto?`<span class="certs"><img src="${x.certPhoto}"></span>`:''}
-      </span>
-      ${x.status==='validee'?'<span class="status st-ok">✓ validée</span>':`<button class="btn-ghost" onclick="validateAbs('${x.id}')">✅ Prendre en compte</button>`}
-    </div>`).join(''):'<p class="empty">Aucune absence signalée — tout roule ☀️</p>';
-}
-async function validateAbs(id){
-  const r=await fetch('/api/school/absences/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  if(r.ok){ toast('✅ Prise en compte — le parent est prévenu'); loadAbsences(); }
-}
-
-/* ══════ PDG ══════ */
-async function bossBoot(){ await loadBossState(); }
-async function loadBossState(){
-  const r=await fetch('/api/admin/state'); if(!r.ok) return toast('⏳ Connexion expirée — relancez');
-  const d=await r.json();
-  const pr = d.price!=null?d.price:3000;
-  $('#cfg-price').value = pr;
-  $('#cfg-trial').value = d.trialDays!=null?d.trialDays:30;
-  $('#cfg-hint').textContent = d.free ? 'Mode actuel : GRATUIT — les familles n\'ont rien à payer.' : ('Mode actuel : PAYANT — '+pr.toLocaleString('fr-FR')+' F/an, essai '+d.trialDays+' j.');
-  $('#boss-kpis').innerHTML=
-    `<div class="kpi"><b>${d.schools.length}</b><span>🏫 écoles</span></div>
-     <div class="kpi"><b>${d.students}</b><span>🧒 élèves</span></div>
-     <div class="kpi"><b>${d.parents}</b><span>👨‍👩‍👧 parents</span></div>
-     <div class="kpi"><b style="color:var(--ok)">${d.subActifs}</b><span>🧡 abonnés actifs</span></div>
-     <div class="kpi"><b>${d.essais}</b><span>🎁 essais en cours</span></div>
-     <div class="kpi"><b style="color:var(--od)">${(d.recettes||0).toLocaleString('fr-FR')}</b><span>💰 recettes F</span></div>`;
-  $('#bst-school').innerHTML=d.schools.map(s=>`<option value="${s.id}">${s.nom}</option>`).join('')||'<option value="">— créez d\'abord une école —</option>';
-  $('#boss-schools').innerHTML=d.schools.length?d.schools.map(s=>`
-    <div class="trow"><span style="font-size:18px">🏫</span><span style="flex:1"><b>${s.nom}</b><br><span class="note">${s.classes} classe(s) · ${s.effectif} élève(s) · ${s.staff} accès</span></span><span class="chip">depuis ${s.createdAt.slice(0,10)}</span></div>`).join(''):'<p class="empty">Aucune école — ajoutez la première ci-dessus ⬆️ puis créez son directeur (panneau suivant).</p>';
-  $('#boss-staff').innerHTML=d.staff.length?d.staff.map(s=>`<div class="trow"><span style="font-size:17px">${s.role==='directeur'?'👔':s.role==='surveillant'?'🧢':'📚'}</span><span style="flex:1"><b>${s.nom}</b> <span class="note">${s.tel} · ${s.role}</span></span></div>`).join(''):'';
-  $('#boss-pay').innerHTML=d.paymentsPending.length?d.paymentsPending.map(x=>`
-    <div class="trow">
-      <span style="font-size:18px">💳</span>
-      <span style="flex:1"><b>${x.parent}</b> <span class="note">${x.tel}</span><br><span class="note">${x.amount.toLocaleString('fr-FR')} F · ${x.method} · réf. <b>${x.ref}</b> · ${x.at.slice(0,16).replace('T',' ')}</span></span>
-      <button class="btn-ghost" style="color:var(--ok)" onclick="payAct('${x.id}','validate')">✅ Valider 1 an</button>
-      <button class="btn-ghost" style="color:var(--danger)" onclick="payAct('${x.id}','reject')">✗</button>
-    </div>`).join(''):'<p class="empty">Aucun paiement en attente ☕</p>';
-  $('#boss-audit').innerHTML=d.audit.length?d.audit.map(a=>`<div class="trow" style="font-size:12.5px"><span class="note" style="flex:none">${a.at.slice(5,16).replace('T',' ')}</span><span style="flex:1"><b>${a.kind}</b> — ${JSON.stringify(a.data).slice(0,90)}</span></div>`).join(''):'<p class="empty">Journal vierge.</p>';
-  try{
-    const rp=await fetch('/api/admin/parents'); BOSS_PARENTS=rp.ok?await rp.json():[];
-  }catch(e){ BOSS_PARENTS=[]; }
-  renderBossParents();
-}
-let BOSS_PARENTS=[];
-function renderBossParents(){
-  const el=$('#boss-parents'); if(!el) return;
-  const q=($('#par-search')&&$('#par-search').value||'').toLowerCase();
-  const list=(BOSS_PARENTS||[]).filter(p=>!q||(p.nom+' '+p.tel).toLowerCase().includes(q));
-  el.innerHTML=list.length?list.map(p=>`
-    <div class="trow">
-      <span style="font-size:18px">${p.blocked?'🔒':'👨‍👩‍👧'}</span>
-      <span style="flex:1"><b>${p.nom}</b> ${p.blocked?'<span class="status st-cancel">BLOQUÉ</span>':''}<br>
-        <span class="note">📞 ${p.tel} · ${(p.enfants||[]).join(', ')||'aucun enfant lié'}</span></span>
-      <button class="btn-ghost" style="color:${p.blocked?'var(--ok)':'#B4731D'}" onclick="parentAct('${p.id}','${p.blocked?'unblock':'block'}','${(p.nom||'').replace(/'/g,'')}')">${p.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
-      <button class="btn-ghost" style="color:var(--danger)" onclick="parentAct('${p.id}','delete','${(p.nom||'').replace(/'/g,'')}')">🗑️</button>
-    </div>`).join(''):'<p class="empty">Aucun compte famille.</p>';
-}
-async function parentAct(id, act, nom){
-  if(act==='delete'){
-    if(!confirm('🗑️ SUPPRIMER le compte de '+nom+' ?\n\nDéfinitif — il devra se réinscrire.')) return;
-    const r=await fetch('/api/admin/parents/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-    if(!r.ok) return toast('❌ impossible');
-    toast('🗑️ '+nom+' supprimé'); return loadBossState();
+    ME = await fetchJ('/api/admin/whoami').catch(()=>ME);
+    const [ov, ms, ags, cands, ppl, cfg, aud] = await Promise.all([
+      fetchJ('/api/admin/overview'),
+      fetchJ('/api/admin/missions'),
+      fetchJ('/api/admin/agents'),
+      fetchJ('/api/admin/candidatures'),
+      fetchJ('/api/admin/inscrits'),
+      fetch('/api/config').then(r=>r.json()).catch(()=>({commission:25})),
+      fetchJ('/api/admin/audit').catch(()=>null)
+    ]);
+    applyRole(); loadSupport();
+    renderOverview(ov); renderMissions(ms); renderAgents(ags); renderCands(cands);
+    PEOPLE = ppl || {agents:[], clients:[]}; renderPeople();
+    if(ME && ME.role==='pdg'){ renderConfig(cfg); if(aud) renderAudit(aud); loadPdgExtras(); }
+    loadTeam(); loadAnnonce(); loadHqChat();
+  }catch(e){
+    // Aperçu sans serveur : exiger la connexion locale avant la démo
+    if(localStorage.getItem('k2_hq_ok') !== '1'){ location.href = 'admin-login.html'; return; }
+    OFFLINE = true;
+    enterDemo(); setLive(false);
   }
-  if(act==='block'){
-    const motif=prompt('🔒 Motif du blocage de '+nom+' (ex : propos déplacés) :','Propos inconvenants');
-    if(motif===null) return;
-    const r=await fetch('/api/admin/parents/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,motif})});
-    if(!r.ok) return toast('❌ impossible');
-    toast('🔒 '+nom+' bloqué — plus d\'accès'); return loadBossState();
-  }
-  if(!confirm('✅ Débloquer '+nom+' ?')) return;
-  await fetch('/api/admin/parents/unblock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  toast('✅ '+nom+' débloqué'); loadBossState();
 }
-async function createSchool(){
-  const nom=$('#bs-nom').value.trim(); if(!nom) return toast('Nom de l\'école ?');
-  const r=await fetch('/api/admin/schools',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  $('#bs-nom').value=''; toast('🏫 École ajoutée ✓ — créez son directeur ↓'); loadBossState();
-}
-async function createStaff(){
-  const schoolId=$('#bst-school').value, nom=$('#bst-nom').value.trim(), tel=$('#bst-tel').value.replace(/\D/g,''), role=$('#bst-role').value;
-  if(!schoolId||nom.length<2||tel.length<8) return toast('École + nom + téléphone requis');
-  const r=await fetch('/api/admin/staff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({schoolId,nom,tel,role})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  alert('🤝 ACCÈS CRÉÉ — remettez en main propre :\n\n    École : '+d.school+'\n    Nom : '+d.nom+'\n    Téléphone : '+d.tel+'\n    Mot de passe : '+d.password+(d.passwordGenere?' (généré)':'')+'\n\nIl se connecte dans le portail → onglet « Je suis de l\'école ».');
-  $('#bst-nom').value=''; $('#bst-tel').value=''; loadBossState();
-}
-async function saveTarif(){
-  const price=parseFloat($('#cfg-price').value), trialDays=parseInt($('#cfg-trial').value,10);
-  if(isNaN(price)||price<0) return toast('❌ Prix invalide (0 = gratuit)');
-  const r=await fetch('/api/admin/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({price,trialDays})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'impossible'));
-  toast(d.free?'🎁 App GRATUITE pour toutes les familles':'💰 Tarif '+d.price.toLocaleString('fr-FR')+' F/an — essai '+d.trialDays+' j');
-  loadBossState();
+let OFFLINE = false;
+const hp2 = s => { try{ return btoa(unescape(encodeURIComponent('klean::'+s))); }catch(e){ return btoa('klean::'+s); } };
+function strongPw(v){
+  if(v.length<8) return 'Au moins 8 caractères requis';
+  if(!/[A-Za-z]/.test(v)) return 'Ajoutez au moins une lettre';
+  if(!/[0-9]/.test(v)) return 'Ajoutez au moins un chiffre';
+  if(!/[^A-Za-z0-9\s]/.test(v)) return 'Ajoutez au moins un symbole (! @ # $ …)';
+  return null;
 }
 async function changePwd(){
-  const cur=prompt('🔑 Mot de passe actuel :'); if(cur===null) return;
-  const n1=prompt('🆕 Nouveau mot de passe (8+, lettre + chiffre) :'); if(!n1) return;
-  const n2=prompt('✅ Confirmez :'); if(n1!==n2) return toast('❌ Les deux saisies ne correspondent pas');
-  const r=await fetch('/api/admin/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current:cur,next:n1})});
+  const cur = prompt('🔑 Mot de passe actuel :'); if(cur === null) return;
+  const n1 = prompt('🆕 Nouveau mot de passe (8+ caractères, lettres + chiffres + symboles) :'); if(!n1) return;
+  const bad = strongPw(n1); if(bad) return alert('❌ ' + bad);
+  const n2 = prompt('✅ Confirmez le nouveau mot de passe :');
+  if(n1 !== n2) return alert('❌ Les deux saisies ne correspondent pas');
+  if(OFFLINE){
+    if(hp2(cur) !== localStorage.getItem('k2_hq_pass')) return alert('❌ Mot de passe actuel incorrect');
+    localStorage.setItem('k2_hq_pass', hp2(n1));
+    return alert('✓ Mot de passe modifié !');
+  }
+  const r = await fetch('/api/admin/password', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({current: cur, next: n1})});
+  if(r.ok) alert('✓ Mot de passe modifié ! Vos anciennes sessions ont été fermées.');
+  else {
+    const d = await r.json().catch(()=>({}));
+    alert('❌ ' + (d.error || 'Erreur serveur'));
+  }
+}
+async function logout(){
+  localStorage.removeItem('k2_hq_ok');
+  await fetch('/api/admin/logout', {method:'POST'}).catch(()=>{});
+  location.href = '/admin-login.html';
+}
+function renderOverview(o){
+  setLive(true);
+  document.querySelector('#k-agents').textContent = o.agentsEnLigne;
+  document.querySelector('#k-agents-sub').textContent = 'sur '+o.agentsTotal+' agent(s) inscrits';
+  document.querySelector('#k-missions').textContent = o.missionsToday;
+  document.querySelector('#k-missions-sub').textContent = o.missionsActive+' en cours actuellement';
+  document.querySelector('#k-ca').textContent = fmt(o.caToday);
+  document.querySelector('#k-comm').textContent = fmt(o.commToday);
+  document.querySelector('#c-ca').textContent = fmt(o.caTotal);
+  document.querySelector('#c-comm').textContent = fmt(o.commTotal);
+  document.querySelector('#c-gains').textContent = fmt(o.gainAgentsTotal);
+  document.querySelector('#c-note').textContent = (o.noteMoyenne||5).toFixed(1).replace('.',',');
+  document.querySelector('#c-done').textContent = o.missionsDone;
+  const _ci = document.querySelector('#c-inscrits'); if(_ci) _ci.textContent = o.clientsTotal || 0;
+  const _cp = document.querySelector('#c-pend'); if(_cp) _cp.textContent = o.candsPending || 0;
+  document.querySelector('#c-clients').textContent = o.clientsTotal || 0;
+  document.querySelector('#c-cands').textContent = o.candsPending || 0;
+  renderChart(o.ca7||[]);
+}
+
+
+/* ─── Personnes inscrites : agents + clients, avec recherche ─── */
+let PEOPLE = {agents:[], clients:[]};
+function pNorm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+let ME = null, TEAM = [];
+function toggleAcctForm(which){
+  const c = document.getElementById('acct-client'), p = document.getElementById('acct-pro');
+  const showC = which==='client' && c.style.display==='none';
+  const showP = which==='pro' && p.style.display==='none';
+  c.style.display = showC ? 'block' : 'none';
+  p.style.display = showP ? 'block' : 'none';
+}
+async function createClientHQ(){
+  const nom=((document.getElementById('acc-nom')||{}).value||'').trim(), tel=((document.getElementById('acc-tel')||{}).value||'').trim();
+  const quartier=((document.getElementById('acc-quartier')||{}).value||'').trim(), password=(document.getElementById('acc-pw')||{}).value||'';
+  const ville=((document.getElementById('acc-ville')||{}).value||'').trim(), mail=((document.getElementById('acc-mail')||{}).value||'').trim();
+  if(nom.length<2||tel.replace(/\D/g,'').length<8) return alert('❌ Nom + numéro valide requis');
+  const r=await fetch('/api/admin/clients/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom,tel,quartier,ville,mail,password})});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok) return toast('❌ '+(d.error||'échec'));
-  toast('✓ Mot de passe modifié — reconnectez-vous'); setTimeout(logout, 800);
+  if(!r.ok) return alert('⚠️ '+(d.error||'Création impossible'));
+  alert('👤 COMPTE CLIENT CRÉÉ\n\nRemettez-lui ses accès :\nTéléphone : '+d.tel+'\nMot de passe : '+d.password+(d.passwordGenere?' (généré automatiquement)':'')+'\n\nIl se connecte dans l\'app : « Se connecter ».');
+  document.getElementById('acc-nom').value='';document.getElementById('acc-tel').value='';document.getElementById('acc-pw').value='';
+  loadAll();
 }
-/* PWA PDG — comme KLEAN : icône écran d'accueil */
-let deferredPrompt=null;
-window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredPrompt=e; showInstallFab(); });
-function showInstallFab(){
-  if(document.getElementById('ins-fab')) return;
-  const b=document.createElement('button');
-  b.id='ins-fab'; b.textContent='📲 Installer l\'app PDG';
-  b.style.cssText='position:fixed;right:14px;bottom:18px;z-index:80;background:linear-gradient(135deg,#E8820C,#C96A00);color:#fff;font-weight:900;font-size:13px;padding:12px 16px;border-radius:99px;box-shadow:0 6px 18px rgba(217,108,0,.35);font-family:inherit;border:none;cursor:pointer';
-  b.onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); const r=await deferredPrompt.userChoice; if(r.outcome==='accepted') b.remove(); deferredPrompt=null; };
-  document.body.appendChild(b);
+async function createProHQ(){
+  const prenom=((document.getElementById('acp-prenom')||{}).value||'').trim(), nom=((document.getElementById('acp-nom')||{}).value||'').trim();
+  const tel=((document.getElementById('acp-tel')||{}).value||'').trim(), quartier=((document.getElementById('acp-quartier')||{}).value||'').trim();
+  const ville=((document.getElementById('acp-ville')||{}).value||'').trim(), mail=((document.getElementById('acp-mail')||{}).value||'').trim();
+  const service=(document.getElementById('acp-service')||{}).value||'maison';
+  if(prenom.length<2||nom.length<2||tel.replace(/\D/g,'').length<8) return alert('❌ Prénom + nom + téléphone requis');
+  const r=await fetch('/api/admin/agents/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom,prenom,tel,quartier,ville,mail,service})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Création impossible'));
+  alert('🧑‍💼 COMPTE PROFESSIONNEL CRÉÉ — VALIDÉ IMMÉDIATEMENT\n\nRemettez-lui ce CODE DE LIAISON (ne notez que pour la remise en main propre) :\n\n    📞 '+d.tel+'\n    🔑 '+d.pin+'\n\nDans l\'app, il touche « Je suis un professionnel » → carte 🤝 « enregistré par le gestionnaire » → numéro + code.\n⚠️ Le code fonctionne UNE SEULE FOIS, puis s\'efface.');
+  document.getElementById('acp-prenom').value='';document.getElementById('acp-nom').value='';document.getElementById('acp-tel').value='';
+  loadAll();
 }
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-(async function resumeSession(){
+async function reassignMission(id, clientNom){
+  const reason = prompt('🔁 RÉATTRIBUER D\'URGENCE la mission '+id+' ('+(clientNom||'client')+') ?\n\nLe professionnel actuel la perd et ne peut plus la reprendre.\nLes autres professionnels en ligne sont avertis immédiatement.\n\nMotif (tracé dans l\'historique) :');
+  if(reason === null) return;
+  const r = await fetch('/api/admin/missions/'+id+'/reassign', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({reason})});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Impossible'));
+  alert('✅ Mission remise en circulation !\nLes autres professionnels viennent d\'être avertis.');
+  loadAll();
+}
+async function loadAnnonce(){
+  if(ME && ME.role !== 'pdg'){ const p=document.getElementById('panel-ann'); if(p) p.style.display='none'; return; }
   try{
-    const r=await fetch('/api/admin/state');
-    if(r.ok){ who={role:'boss',nom:'Maître'}; enter(); return; }
+    const d = await fetch('/api/annonce', {cache:'no-store'}).then(r=>r.json());
+    const el = document.getElementById('ann-cur');
+    if(!el) return;
+    el.innerHTML = d && d.annonce
+      ? ('Affiche en cours : <b>'+( {maj:'✨ Mise à jour', info:'ℹ️ Information', alerte:'⚠️ Importante'} [d.annonce.type] || 'Info')+'</b> — « '+d.annonce.message+' » <br><span style="color:#8aa79a">publiée le '+(d.annonce.at||'').slice(0,10)+' par '+(d.annonce.par||'—')+' — version serveur '+(d.version||'')+'</span>')
+      : ('Aucune affiche en cours. <span style="color:#8aa79a">Version serveur : '+(d && d.version || '…')+'</span>');
+  }catch(e){}
+}
+async function publierAnnonce(){
+  const msg = ((document.getElementById('ann-msg')||{}).value||'').trim();
+  const type = (document.getElementById('ann-type')||{}).value || 'info';
+  if(msg.length < 4) return alert('❌ Écrivez le message de l\'affiche d\'abord');
+  const r = await fetch('/api/admin/annonce', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: msg, type})});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Publication impossible'));
+  document.getElementById('ann-msg').value='';
+  alert('📣 Publié ! Tous les clients et tous les professionnels verront l\'affiche en moins d\'une minute (ou à leur prochaine ouverture).');
+  loadAnnonce();
+}
+async function retirerAnnonce(){
+  if(!confirm('Retirer l\'affiche actuelle ?')) return;
+  await fetch('/api/admin/annonce', {method:'DELETE'});
+  loadAnnonce();
+}
+/* 🛡️ Matrice des rôles à l'écran : si connecté GESTIONNAIRE, tout ce qui est PDG disparaît */
+function applyRole(){
+  if(ME && ME.role !== 'pdg'){
+    document.body.classList.add('role-gest');
+    ['panel-cfg','panel-audit','panel-ann','panel-ca7'].forEach(id=>{ const p=document.getElementById(id); if(p) p.style.display='none'; });
+    ['k-ca','k-comm','c-ca','c-comm','c-gains'].forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      const card=el.closest('.kpi') || el.closest('.chip') || el.parentElement;
+      if(card) card.style.display='none';
+    });
+  }
+}
+async function loadTeam(){
+  try{ ME = await fetchJ('/api/admin/whoami'); }catch(e){ ME = {role:'pdg', nom:'PDG'}; }
+  document.querySelector('#team-gate').style.display = ME && ME.role==='pdg' ? 'none' : 'block';
+  document.querySelector('#team-form').style.display = ME && ME.role==='pdg' ? 'block' : 'none';
+  if(!ME || ME.role !== 'pdg'){ document.querySelector('#team-cnt').textContent = (ME && ME.nom)?('connecté : '+ME.nom):'—'; return; }
+  try{ TEAM = await fetchJ('/api/admin/admins'); }catch(e){ TEAM = []; }
+  renderAdmins();
+}
+function renderAdmins(){
+  document.querySelector('#team-cnt').textContent = 'vous + '+(TEAM||[]).length+' gestionnaire(s)';
+  document.querySelector('#admins').innerHTML = (TEAM||[]).map(a=>`
+    <div class="agrow" style="margin-top:9px">
+      <div class="avatar" style="background:linear-gradient(135deg,#8a63d2,#5b3ba8)">${(a.nom||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <b>${a.nom}</b> <span class="badge" style="background:rgba(138,99,210,.15);color:#9d78e6;border-color:rgba(138,99,210,.4)">GESTIONNAIRE</span>${a.blocked?' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">BLOQUÉ</span>':''}<br>
+        <small>🆔 ${a.ident} · créé le ${(a.createdAt||'').slice(0,10)}${a.lastLogin?(' · dernière connexion '+(a.lastLogin||'').slice(0,10)):''}</small>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button style="background:${a.blocked?'rgba(21,201,138,.15)':'var(--card2)'};border:1px solid ${a.blocked?'rgba(21,201,138,.4)':'rgba(255,176,32,.4)'};color:${a.blocked?'var(--p)':'var(--amber)'};font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionAdmin('${a.id}','${a.blocked?'unblock':'block'}','${(a.nom||'').replace(/'/g,'')}')">${a.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
+          <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionAdmin('${a.id}','password','${(a.nom||'').replace(/'/g,'')}')">🔑 Mot de passe</button>
+          <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionAdmin('${a.id}','delete','${(a.nom||'').replace(/'/g,'')}')">🗑️</button>
+        </div>
+      </div>
+    </div>`).join('') || (ME && ME.role==='pdg' ? '<div class="empty" style="margin-top:9px">Aucun gestionnaire encore.<br>Créez son premier compte juste au-dessus.</div>' : '');
+}
+let SUPV = null, SUP_OPEN = null;
+async function loadSupport(){
+  try{ SUPV = await fetchJ('/api/admin/support' + (SUP_OPEN ? '?open='+encodeURIComponent(SUP_OPEN.role+'|'+SUP_OPEN.uid) : '')); }catch(e){ return; }
+  renderSupport();
+}
+function renderSupport(){
+  const box = document.getElementById('sup-convs'); if(!box) return;
+  const list = (SUPV && SUPV.conversations) || [];
+  document.querySelector('#sup-cnt').textContent = list.length ? list.length+' conversation(s)' : '—';
+  box.innerHTML = list.map(c=>{
+    const open = SUP_OPEN && SUP_OPEN.role===c.role && SUP_OPEN.uid===c.uid;
+    return `<div class="agrow" style="margin-bottom:6px;cursor:pointer" onclick="supToggle('${c.role}','${c.uid}','${(c.nom||'').replace(/'/g,'')}')">
+      <div class="avatar" style="background:${c.role==='pro'?'linear-gradient(135deg,#15c98a,#0a8f60)':'linear-gradient(135deg,#5b8ab8,#2c567c)'}">${(c.nom||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <b>${c.nom}</b> <span class="badge">${c.role==='pro'?'PRO':'CLIENT'}</span>${c.unreadHQ?(' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">'+c.unreadHQ+' NON LU'+(c.unreadHQ>1?'S':'')+'</span>'):''}<br>
+        <small style="color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:190px">${((c.last&&c.last.text)||'').slice(0,60)}</small>
+      </div>
+      <span style="color:var(--muted);font-size:13px">${open?'▾':'▸'}</span>
+    </div>`;
+  }).join('') || '<div class="empty">Aucun message encore.<br>Le support apparaîtra ici dès qu\u2019un client ou un professionnel écrira.</div>';
+  if(SUP_OPEN){
+    document.getElementById('sup-chat').style.display='block';
+    const mm = (SUPV && SUPV.messages) || [];
+    const sc = document.getElementById('sup-msgs');
+    sc.innerHTML = mm.map(s=>{
+      const me = s.from==='hq';
+      return `<div style="align-self:${me?'flex-end':'flex-start'};max-width:84%;background:${me?'rgba(21,201,138,.14)':'var(--card2)'};border:1px solid ${me?'rgba(21,201,138,.35)':'var(--line)'};border-radius:11px;padding:7px 10px;font-size:12.5px;line-height:1.42">${s.text}<small style="display:block;color:var(--muted);font-size:9.5px;margin-top:2px">${me?('vous ('+(s.par||'')+')'):(s.nom||'')} · ${(s.at||'').slice(11,16)}</small></div>`;
+    }).join('') || '<div class="empty">—</div>';
+    sc.scrollTop = sc.scrollHeight;
+  }
+}
+async function supToggle(role, uid, nom){
+  if(SUP_OPEN && SUP_OPEN.role===role && SUP_OPEN.uid===uid){
+    SUP_OPEN = null;
+    const chat = document.getElementById('sup-chat'); if(chat) chat.style.display='none';
+    renderSupport(); return;
+  }
+  SUP_OPEN = {role, uid, nom}; await loadSupport();
+}
+async function supReply(){
+  const inp = document.getElementById('sup-input');
+  const v = ((inp && inp.value) || '').trim();
+  if(v.length < 2 || !SUP_OPEN) return;
+  const r = await fetch('/api/admin/support', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({role:SUP_OPEN.role, uid:SUP_OPEN.uid, text:v})});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Envoi impossible'));
+  inp.value = ''; loadSupport();
+}
+setInterval(()=>{ if(document.getElementById('sup-cnt')) loadSupport(); }, 15000);
+
+function pwOk(v){
+  return v.length>=8 && /[A-Za-z]/.test(v) && /[0-9]/.test(v) && /[^A-Za-z0-9\s]/.test(v);
+}
+async function createAdmin(){
+  const nom = ((document.getElementById('tm-nom')||{}).value||'').trim();
+  const ident = ((document.getElementById('tm-ident')||{}).value||'').trim();
+  const pw = (document.getElementById('tm-pw')||{}).value || '';
+  if(nom.length < 3) return alert('❌ Nom trop court');
+  if(!pwOk(pw)) return alert('❌ Mot de passe faible : au moins 8 signes, une lettre, un chiffre, un symbole');
+  const r = await fetch('/api/admin/admins', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({nom, ident, password: pw})});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Création impossible'));
+  document.getElementById('tm-nom').value=''; document.getElementById('tm-ident').value=''; document.getElementById('tm-pw').value='';
+  alert('👑 '+nom+' est administrateur.\n\nRemettez-lui ces accès en main propre :\n'+location.origin+'/admin\nIdentifiant : '+(ident || nom.split(' ')[0])+'\nMot de passe : celui choisi à l\'instant.\n\nIl devra le changer ensuite.');
+  loadTeam();
+}
+async function actionAdmin(id, action, nom){
+  if(action==='delete'){
+    if(!confirm('🗑️ SUPPRIMER le gestionnaire '+nom+' ?\n\nSon accès est révoqué immédiatement.')) return;
+    const r = await fetch('/api/admin/admins/'+id, {method:'DELETE'});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); return alert('⚠️ '+(d.error||'Impossible')); }
+  } else if(action==='password'){
+    const pw = prompt('🔑 NOUVEAU mot de passe pour '+nom+' (8+ signes, lettre+chiffre+symbole) :');
+    if(pw===null) return;
+    if(!pwOk(pw)) return alert('❌ Trop faible — réessayez');
+    const r = await fetch('/api/admin/admins/'+id+'/password', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})});
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) return alert('⚠️ '+(d.error||'Impossible'));
+    alert('🔑 Mot de passe renouvelé pour '+nom+'.\nSon ancien accès est révoqué — reconnection nécessaire.');
+  } else {
+    if(!confirm(action==='block' ? '🔒 Éjecter '+nom+' immédiatement ?' : '✅ Rendre son accès à '+nom+' ?')) return;
+    await fetch('/api/admin/admins/'+id+'/'+action, {method:'POST'});
+  }
+  loadTeam();
+}
+
+function renderPeople(){
+  const el = document.querySelector('#people'); if(!el) return;
+  const q = pNorm((document.querySelector('#people-search')||{}).value || '');
+  document.querySelector('#people-cnt').textContent = PEOPLE.agents.length + ' agent(s) · ' + PEOPLE.clients.length + ' client(s)';
+  const Ag = PEOPLE.agents.filter(a => !q || pNorm(a.nom+' '+a.tel+' '+a.quartier+' '+(a.services||[]).map(x=>SVC_N[x]||x).join(' ')).includes(q));
+  const Cl = PEOPLE.clients.filter(c => !q || pNorm(c.nom+' '+c.tel+' '+c.quartier).includes(q));
+  const agentRow = a => {
+    const [cls, txt] = CST[a.status] || ['b-pending', a.status||'?'];
+    return `<div class="agrow">
+      <div class="avatar">${(a.nom||'?')[0].toUpperCase()}<span class="${a.online?'doton':'dotof'}"></span></div>
+      <div style="flex:1;min-width:0">
+        <b>${a.nom}</b> <span class="badge b-blue" style="background:rgba(74,163,255,.14);color:var(--blue);border-color:rgba(74,163,255,.3)">PRO</span> <span class="badge ${cls}">${txt}</span> ${a.online?'<span class="badge b-active">en ligne</span>':''}${a.blocked?' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">BLOQUÉ</span>':''}<br>
+        <small>📞 ${a.tel||'—'} · 📍 ${a.quartier||'—'}${a.niveau?' · 🎓 '+a.niveau:''}</small><br>
+        <small>🧰 ${(a.services||[]).map(x=>(SVC_N[x]||x)).join(', ')||'—'} · ✅ ${a.done||0} mission(s) · 💰 ${fmt(a.gain||0)} gagnés</small>
+        <div id="pdet-${a.id}" style="display:none;background:var(--card2);border-radius:10px;padding:9px 11px;font-size:11.5px;margin-top:6px">
+          Inscrit le ${(a.createdAt||'').slice(0,10)} · ID ${a.id}
+          ${a.status==='pending' ? `<div style="margin-top:7px;display:flex;gap:6px">
+            <button style="background:rgba(21,201,138,.15);border:1px solid rgba(21,201,138,.4);color:var(--p);font-size:10.5px;font-weight:900;padding:7px 10px;border-radius:9px;cursor:pointer" onclick="decideCand('${a.id}','approve','${(a.nom||'').replace(/'/g,'')}')">✅ Valider</button>
+            <button style="background:var(--card2);border:1px solid rgba(255,176,32,.4);color:var(--amber);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="askMoreInfo('${a.id}')">➕ Infos</button>
+            <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer" onclick="decideCand('${a.id}','reject','${(a.nom||'').replace(/'/g,'')}')">✕ Rejeter</button></div>` : `<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">
+            <button style="background:${a.blocked?'rgba(21,201,138,.15)':'var(--card2)'};border:1px solid ${a.blocked?'rgba(21,201,138,.4)':'rgba(255,176,32,.4)'};color:${a.blocked?'var(--p)':'var(--amber)'};font-size:10.5px;font-weight:900;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','${a.blocked?'unblock':'block'}','${(a.nom||'').replace(/'/g,'')}')">${a.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
+            <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','delete','${(a.nom||'').replace(/'/g,'')}')">🗑️ Supprimer</button></div>`}
+        </div>
+      </div>
+      <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;flex-shrink:0" onclick="togglePeopleDet('${a.id}')">🔍 Profil</button>
+    </div>`;
+  };
+  const clientRow = c => `<div class="agrow">
+      <div class="avatar" style="background:linear-gradient(135deg,var(--blue),#2f6fd0)">${(c.nom||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <b>${c.nom}</b> <span class="badge" style="background:rgba(74,163,255,.14);color:var(--blue);border-color:rgba(74,163,255,.3)">CLIENT</span>${c.photo?' 📷':''}${c.blocked?' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4)">BLOQUÉ</span>':''}<br>
+        <small>📞 ${c.tel||'—'} · 📍 ${c.quartier||'quartier non précisé'}</small><br>
+        <small>🧾 ${c.missions||0} mission(s) · 💸 ${fmt(c.depense||0)} dépensés · inscrit le ${(c.createdAt||'').slice(0,10)}</small>
+        <div style="margin-top:7px;display:flex;gap:6px">
+          <button style="background:${c.blocked?'rgba(21,201,138,.15)':'var(--card2)'};border:1px solid ${c.blocked?'rgba(21,201,138,.4)':'rgba(255,176,32,.4)'};color:${c.blocked?'var(--p)':'var(--amber)'};font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionClient('${c.id}','${c.blocked?'unblock':'block'}','${(c.nom||'').replace(/'/g,'')}')">${c.blocked?'✅ Débloquer':'🔒 Bloquer'}</button>
+          <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer;font-family:inherit" onclick="actionClient('${c.id}','delete','${(c.nom||'').replace(/'/g,'')}')">🗑️ Supprimer</button>
+        </div>
+      </div>
+    </div>`;
+  el.innerHTML = (Ag.map(agentRow).join('') + Cl.map(clientRow).join('')) || '<div class="empty">Aucune personne ne correspond à cette recherche.</div>';
+}
+function togglePeopleDet(id){
+  const d = document.getElementById('pdet-'+id); if(!d) return;
+  d.style.display = d.style.display==='none' ? 'block' : 'none';
+}
+
+/* ─── Vérification des dossiers agents ─── */
+const CST = {pending:['b-active','⏳ En attente'], approved:['b-done','✓ Validé'], rejected:['b-cancel','Rejeté'], moreinfo:['b-pending','📝 Infos demandées']};
+function renderCands(list){
+  const pend = list.filter(a=>a.status==='pending').length;
+  document.querySelector('#cand-cnt').textContent = pend + ' en attente / ' + list.length + ' dossier(s)';
+  const el = document.querySelector('#cands');
+  if(!list.length){ el.innerHTML = '<div class="empty">Aucun dossier pour le moment.</div>'; return; }
+  el.innerHTML = list.map(a=>{
+    const [cls, txt] = CST[a.status] || ['b-pending', a.status];
+    const infos = [
+      ['👤', a.nom + ' · né(e) le ' + (a.naissance||'—')],
+      ['📞', (a.tel1||a.tel||'') + (a.tel2 ? ' / '+a.tel2 : '')],
+      ['📍', (a.quartier||'—') + ' — ' + (a.adresse||'')],
+      ['🪪', (a.pieceType||'') + ' N° ' + (a.pieceNum||'') + (a.hasPhoto ? ' · 📷 photo jointe' : ' · ⚠️ pas de photo')],
+      ['🚨', 'Urgence : ' + (a.urgenceNom||'') + ' · ' + (a.urgenceTel||'')],
+      ['🗣️', 'Réf. 1 : ' + (a.ref1Nom||'') + ' ' + (a.ref1Tel||'') + (a.ref2Nom ? ' · Réf. 2 : '+a.ref2Nom+' '+(a.ref2Tel||'') : '')],
+      ['🎓', a.niveau ? 'Niveau d\'étude : ' + a.niveau : ((a.services||[]).includes('cours') ? '⚠️ Niveau d\'étude NON précisé (cours)' : '🎓 Cours : non concerné')],
+      ['💼', (a.experience||0) + ' an(s) d\'expérience · ' + ((a.services||[]).map(s=>(SVC_N[s]||s)).join(', ') || 'services ?')],
+      ['🧩', (a.subsNoms && Object.keys(a.subsNoms).length) ? Object.entries(a.subsNoms).map(([sid, arr]) => (SVC_N[sid]||sid) + ' — ' + arr.join(' · ')).join('  /  ') : 'Sous-choix : non précisés'],
+    ].concat(a.history && a.history.length ? [['📜', a.history.map(h => (h.at||'').slice(0,10)+' · '+h.action+(h.motif?' ('+h.motif+')':'')).join(' → ')]] : []);
+    return `<div class="agrow" style="align-items:flex-start">
+      ${a.photo
+        ? `<div style="position:relative;width:44px;height:44px;flex-shrink:0"><img src="${a.photo}" style="width:44px;height:44px;border-radius:50%;object-fit:cover"><span class="${a.online?'doton':'dotof'}" style="position:absolute;right:0;bottom:0"></span></div>`
+        : `<div class="avatar">${(a.nom||'?')[0].toUpperCase()}<span class="${a.online?'doton':'dotof'}"></span></div>`}
+      <div style="flex:1;min-width:0">
+        <b>${a.nom}</b> <span class="badge ${cls}">${txt}</span><br>
+        <small>${hhmm(a.createdAt||'')} · ${a.id}</small>
+        <div id="det-${a.id}" style="display:none;margin-top:8px;background:var(--card2);border-radius:10px;padding:10px 12px;font-size:11.5px;line-height:1.7">
+          ${infos.map(x=>`<div>${x[0]} ${x[1]||'—'}</div>`).join('')}
+          ${a.reason ? `<div style="color:var(--red)">❌ Rejet : ${a.reason}</div>` : ''}
+          <div id="photo-${a.id}"></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;margin-left:auto">
+        <button style="background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="toggleCandDet('${a.id}', ${a.hasPhoto?'true':'false'})">🔍 Détails</button>
+        ${a.status==='pending' ? `
+        <button style="background:rgba(21,201,138,.15);border:1px solid rgba(21,201,138,.4);color:var(--p);font-size:10.5px;font-weight:900;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="decideCand('${a.id}','approve','${(a.nom||'').replace(/'/g,'')}')">✅ Valider</button>
+        <button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10.5px;font-weight:800;padding:7px 10px;border-radius:9px;cursor:pointer;font-family:inherit" onclick="decideCand('${a.id}','reject','${(a.nom||'').replace(/'/g,'')}')">✕ Rejeter</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+async function toggleCandDet(id, hasPhoto){
+  const d = document.getElementById('det-'+id);
+  const show = d.style.display === 'none';
+  d.style.display = show ? 'block' : 'none';
+  if(show && hasPhoto && !d.dataset.photoLoaded){
+    d.dataset.photoLoaded = '1';
+    try{
+      const r = await fetchJ('/api/admin/candidatures/'+id);
+      if(r.piecePhoto) document.getElementById('photo-'+id).innerHTML = '<img src="'+r.piecePhoto+'" style="max-width:220px;border-radius:10px;margin-top:8px;border:1px solid var(--line)">';
+    }catch(e){}
+  }
+}
+/* Réglages commission + journal d'audit */
+function renderConfig(cfg){
+  const c = (cfg && cfg.commission)!=null ? cfg.commission : 25;
+  const el = document.getElementById('cfg-comm'); if(el) el.value = c;
+  const er = document.getElementById('cfg-reach'); if(er) er.value = (cfg && cfg.reachKm) || 15;
+}
+async function saveComm(){
+  const v = parseFloat(document.getElementById('cfg-comm').value);
+  if(isNaN(v) || v<0 || v>50) return alert('Entre 0 et 50 %');
+  const reach = parseFloat(document.getElementById('cfg-reach') && document.getElementById('cfg-reach').value) || undefined;
+  const r = await fetch('/api/admin/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({commission:v, reachKm:reach})});
+  const d = await r.json().catch(()=>({}));
+  if(r.ok){ alert('✅ Commission réglée à '+d.commission+' % — appliquée sur les nouvelles missions.'); loadAll(); }
+  else alert('❌ '+(d.error||'Erreur'));
+}
+function renderAudit(list){
+  const el = document.getElementById('audit'); if(!el) return;
+  document.getElementById('audit-cnt').textContent = (list||[]).length + ' événement(s)';
+  const ICONS = {agent_valide:'✅', agent_rejete:'❌', agent_infos_demandees:'📝', agent_recandidature:'🔁', commission_modifiee:'⚙️', hq_connexion:'🔑', hq_login_echec:'🚫', hq_login_bloque:'⛔', mdp_reinitialise:'🆕'};
+  if(!list || !list.length){ el.innerHTML = '<div class="empty">Aucun événement pour le moment.</div>'; return; }
+  el.innerHTML = list.slice(0, 40).map(e=>{
+    const extra = Object.keys(e).filter(k=>!['at','kind'].includes(k)).map(k=>k+': '+(typeof e[k]==='object'?'':e[k])).join(' · ');
+    return `<div class="agrow" style="align-items:flex-start">
+      <div style="font-size:18px">${ICONS[e.kind]||'•'}</div>
+      <div style="flex:1;min-width:0"><b>${(e.kind||'').replace(/_/g,' ')}</b><br><small>${(e.at||'').slice(0,16).replace('T',' · ')}${extra?' — '+extra:''}</small></div>
+    </div>`;
+  }).join('');
+}
+async function askMoreInfo(id){
+  const motif = prompt('📝 Que manque-t-il au dossier ? (ex : photo de la pièce illisible, référence injoignable) :', 'Photo de la pièce illisible');
+  if(motif===null) return;
+  await fetch('/api/admin/agents/'+id+'/moreinfo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({motif})});
+  setTimeout(loadAll, 300);
+}
+async function decideCand(id, action, nom){
+  if(action === 'approve'){
+    if(!confirm('✅ Valider le dossier de '+nom+' ?\nIl pourra recevoir des missions.')) return;
+  } else {
+    const reason = prompt('✕ Motif du rejet du dossier de '+nom+' (ex : pièce illisible, références injoignables) :', 'Dossier incomplet');
+    if(reason === null) return;
+    await fetch('/api/admin/agents/'+id+'/reject', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({reason})});
+    setTimeout(loadAll, 300); return;
+  }
+  await fetch('/api/admin/agents/'+id+'/approve', {method:'POST'});
+  setTimeout(loadAll, 300);
+}
+async function askPdg(role, id, kind, nom){
+  const motif = prompt('📋 Demande au PDG — '+(kind==='block'?'bloquer':'supprimer')+' « '+nom+' »\n\nMotif :');
+  if(motif===null) return;
+  const r = await fetch('/api/admin/account-request', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({role, id, kind, motif})});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Impossible'));
+  alert('🟠 Demande envoyée au PDG. Il décidera.');
+}
+async function actionPro(id, action, nom){
+  if(ME && ME.role !== 'pdg'){
+    if(action==='delete'||action==='block') return askPdg('pro', id, action==='delete'?'delete':'block', nom);
+  }
+  if(action==='delete'){
+    if(!confirm('🗑️ SUPPRIMER '+nom+' ?\n\nSon dossier et son compte disparaîtront définitivement.\n(Ses missions passées restent dans l\'historique.)')) return;
+    const r = await fetch('/api/admin/agents/'+id, {method:'DELETE'});
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) return alert('⚠️ '+(d.error||'Action impossible'));
+    alert('🗑️ '+nom+' supprimé.'); setTimeout(loadAll, 300); return;
+  }
+  const bloc = action==='block';
+  if(!confirm(bloc ? '🔒 Bloquer '+nom+' ?\n\nIl sera mis hors ligne et ne recevra plus aucune demande.' : '✅ Débloquer '+nom+' ?\nIl pourra de nouveau recevoir des missions.')) return;
+  await fetch('/api/admin/agents/'+id+'/'+(bloc?'block':'unblock'), {method:'POST'});
+  setTimeout(loadAll, 300);
+}
+async function actionClient(id, action, nom){
+  if(action==='delete'){
+    if(!confirm('🗑️ SUPPRIMER le client '+nom+' ?\n\nSon compte disparaîtra définitivement.')) return;
+    const r = await fetch('/api/admin/clients/'+id, {method:'DELETE'});
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) return alert('⚠️ '+(d.error||'Action impossible'));
+    alert('🗑️ Client '+nom+' supprimé.'); setTimeout(loadAll, 300); return;
+  }
+  const bloc = action==='block';
+  if(!confirm(bloc ? '🔒 Bloquer le client '+nom+' ?\n\nIl ne pourra plus passer de demandes.' : '✅ Débloquer '+nom+' ?')) return;
+  await fetch('/api/admin/clients/'+id+'/'+(bloc?'block':'unblock'), {method:'POST'});
+  setTimeout(loadAll, 300);
+}
+function renderChart(days){
+  const max = Math.max(1, ...days.map(d=>d.ca));
+  document.querySelector('#chart').innerHTML = days.map(d=>`
+    <div class="bar-wrap">
+      <span class="bar-val">${d.ca?fmt(d.ca).replace(' F',''):''}</span>
+      <div class="bar" title="${d.day} : ${fmt(d.ca)} (${d.n} mission(s))" style="height:${Math.max(4, Math.round(d.ca/max*72))}px"></div>
+      <span class="bar-lbl">${d.day}.</span>
+    </div>`).join('');
+  document.querySelector('#chart-total').textContent = fmt(days.reduce((s,d)=>s+d.ca,0))+' sur 7 j';
+}
+function renderMissions(list){
+  document.querySelector('#m-cnt').textContent = list.length ? list.length+' récentes' : '—';
+  const el = document.querySelector('#missions');
+  if(!list.length){ el.innerHTML = '<div class="empty">Aucune mission pour le moment.<br>Créez-en une depuis l\'app client !</div>'; return; }
+  el.innerHTML = list.map(m=>{
+    const [cls,txt] = STATUS[m.status]||['b-pending',m.status];
+    return `<div class="mrow">
+      <div class="ic">${SVC[m.service]||'🧹'}</div>
+      <div>
+        <b>${SVC_N[m.service]||m.service} · ${m.quartier}</b>
+        <small>#${m.id} · ${m.client||'—'}${m.agent?' → '+m.agent:''} · ${hhmm(m.at)}${m.paiement?' · '+(PAYTAG[m.paiement]||m.paiement):''}${m.gps?' · 📡GPS':''}</small>
+        <span class="badge ${cls}">${txt}</span>
+      </div>
+      <div class="right"><b>${fmt(m.prixTotal)}</b><small>+${fmt(m.comm)} KLEAN</small>${['accepted','enroute'].includes(m.status)?`<br><button title="Réattribuer d'urgence à un autre professionnel" style="margin-top:5px;background:var(--card2);border:1px solid rgba(255,176,32,.45);color:var(--amber);font-size:9.5px;font-weight:800;padding:4px 8px;border-radius:7px;cursor:pointer;font-family:inherit" onclick="reassignMission('${m.id}','${(m.client||'').replace(/'/g,'')}')">🔁 Réaff.</button>`:''}</div>
+    </div>`;
+  }).join('');
+}
+function renderAgents(list){
+  document.querySelector('#a-cnt').textContent = list.length ? list.length+' inscrit(s)' : '—';
+  const el = document.querySelector('#agents');
+  if(!list.length){ el.innerHTML = '<div class="empty">Aucun professionnel inscrit.<br>Dans l’app : bouton « Je suis un professionnel » pour en créer un.</div>'; return; }
+  el.innerHTML = [...list].sort((a,b)=> (b.online-a.online) || (b.gain-a.gain)).map(a=>`
+    <div class="agrow">
+      <div class="avatar">${(a.nom||'?')[0].toUpperCase()}<span class="${a.online?'doton':'dotof'}"></span></div>
+      <div><b>${a.nom}</b>${a.blocked?' <span class="badge" style="background:rgba(255,107,107,.16);color:var(--red);border-color:rgba(255,107,107,.4);font-size:8.5px">BLOQUÉ</span>':''}<small>📍 ${a.quartier||'—'} · ${a.missionsDone} mission(s) · ⭐ ${(a.rating||5).toFixed(1)}</small><div style="margin-top:5px;display:flex;gap:5px"><button style="background:${a.blocked?'rgba(21,201,138,.15)':'var(--card2)'};border:1px solid ${a.blocked?'rgba(21,201,138,.4)':'rgba(255,176,32,.4)'};color:${a.blocked?'var(--p)':'var(--amber)'};font-size:9.5px;font-weight:800;padding:4px 7px;border-radius:7px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','${a.blocked?'unblock':'block'}','${(a.nom||'').replace(/'/g,'')}')">${a.blocked?'✅':'🔒'}</button><button style="background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:9.5px;font-weight:800;padding:4px 7px;border-radius:7px;cursor:pointer;font-family:inherit" onclick="actionPro('${a.id}','delete','${(a.nom||'').replace(/'/g,'')}')">🗑️</button></div></div>
+      <div class="right"><b>${fmt(a.gain)}</b><small>gagnés · ${a.online?'en ligne':'hors ligne'}</small></div>
+    </div>`).join('');
+}
+function addFeed(text, at){
+  const el = document.querySelector('#feed');
+  if(!feedStarted){ el.innerHTML=''; feedStarted=true; }
+  const d = document.createElement('div');
+  d.className = 'feed-item';
+  d.innerHTML = `<span class="t">${hhmm(at)||new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span><p>${text}</p>`;
+  el.prepend(d);
+  while(el.children.length>40) el.lastChild.remove();
+}
+function setLive(on){
+  if(DEMO){
+    document.querySelector('#live-pill').classList.add('off');
+    document.querySelector('#live-txt').textContent = 'MODE DÉMO';
+    return;
+  }
+  document.querySelector('#live-pill').classList.toggle('off', !on);
+  document.querySelector('#live-txt').textContent = on ? 'EN DIRECT' : 'HORS LIGNE';
+}
+
+/* ─── Temps réel ─── */
+let retry = null;
+function connectWS(){
+  const proto = location.protocol==='https:' ? 'wss' : 'ws';
+  let ws;
+  try{ ws = new WebSocket(proto+'://'+location.host+'/ws'); }catch(e){ return scheduleRetry(); }
+  ws.onopen = ()=>{ setLive(true); ws.send(JSON.stringify({type:'hello', role:'admin'})); };
+  ws.onmessage = ev=>{
+    try{
+      const m = JSON.parse(ev.data);
+      if(m.type==='admin_event'){
+        addFeed(m.text, m.at);
+        setTimeout(loadAll, 400); // rafraîchit KPIs & listes
+      }
+    }catch(e){}
+  };
+  ws.onclose = ()=>{ setLive(false); scheduleRetry(); };
+  ws.onerror = ()=>{ try{ws.close();}catch(e){} };
+  setInterval(()=>{ if(ws.readyState===1) ws.send('{"type":"ping"}'); }, 25000);
+}
+function scheduleRetry(){ clearTimeout(retry); retry = setTimeout(connectWS, 4000); }
+
+async function loadHqChat(){
+  try{
+    const d = await fetchJ('/api/admin/hq-chat');
+    const box = document.getElementById('hqchat-msgs'); if(!box) return;
+    const n = d.unread||0;
+    document.getElementById('hqchat-cnt').textContent = n ? n+' non lu(s)' : (d.messages||[]).length+' msg';
+    if(n && ME && ME.role==='pdg'){
+      let b=document.getElementById('hq-bubble');
+      if(!b){ b=document.createElement('button'); b.id='hq-bubble'; b.textContent='🟠 '+n; b.title='Messages gestionnaires';
+        b.style.cssText='position:fixed;right:16px;bottom:18px;z-index:90;background:#ff8a00;color:#fff;font-weight:900;border:none;border-radius:99px;padding:12px 16px;cursor:pointer;box-shadow:0 6px 18px rgba(255,138,0,.4);font-family:inherit';
+        b.onclick=()=>{ document.getElementById('panel-hqchat').scrollIntoView({behavior:'smooth'}); b.remove(); };
+        document.body.appendChild(b);
+      } else b.textContent='🟠 '+n;
+    }
+    box.innerHTML=(d.messages||[]).map(m=>`<div style="align-self:${m.from==='pdg'?'flex-end':'flex-start'};max-width:86%;background:${m.from==='pdg'?'rgba(21,201,138,.14)':'rgba(255,138,0,.14)'};border:1px solid var(--line);border-radius:11px;padding:7px 10px;font-size:12.5px">${m.text}<small style="display:block;color:var(--muted);font-size:9.5px">${m.gestNom||m.from} · ${(m.at||'').slice(11,16)}</small></div>`).join('')||'<div class="empty">Aucun message</div>';
+    box.scrollTop=box.scrollHeight;
+  }catch(e){}
+}
+async function sendHqChat(){
+  const inp=document.getElementById('hqchat-in'); const v=(inp.value||'').trim(); if(!v) return;
+  const r=await fetch('/api/admin/hq-chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:v})});
+  if(r.ok){ inp.value=''; loadHqChat(); }
+}
+async function loadPdgExtras(){
+  ['panel-promo','panel-paydest','panel-trash'].forEach(id=>{ const p=document.getElementById(id); if(p) p.style.display=''; });
+  try{
+    const pr=await fetchJ('/api/admin/promos');
+    document.getElementById('promo-list').innerHTML=(pr||[]).map(x=>`<div class="agrow"><div><b>${x.code}</b> ${x.active?'<span class="badge b-done">actif</span>':'<span class="badge b-cancel">annulé</span>'}<br><small>${x.unique?'usage unique':x.maxUses+' uses'} · ${x.uses||0} utilisés · jusqu'au ${(x.until||'').slice(0,10)}</small></div>${x.active?`<button style="margin-left:auto;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--red);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;cursor:pointer" onclick="cancelPromo('${x.id}')">Annuler</button>`:''}</div>`).join('')||'<div class="empty">Aucun code</div>';
   }catch(e){}
   try{
-    const r=await fetch('/api/school/me');
-    if(r.ok){ const d=await r.json(); who={role:'staff',nom:d.nom,school:d.school,srole:d.role}; enter(); }
+    const pt=await fetchJ('/api/admin/partners');
+    document.getElementById('partner-list').innerHTML=(pt||[]).map(x=>`<div class="agrow"><b>${x.nom}</b><small> · ${x.tel||'—'}</small></div>`).join('')||'<div class="empty">Aucun partenaire</div>';
   }catch(e){}
+  try{
+    const tr=await fetchJ('/api/admin/trash');
+    document.getElementById('trash-list').innerHTML=(tr||[]).length?(tr||[]).map(x=>`<div class="agrow"><div><b>${(x.data&&x.data.nom)||'?'}</b> <span class="badge">${x.kind}</span><br><small>${(x.at||'').slice(0,16)}</small></div><button class="btn-main" style="flex:none;padding:7px 10px" onclick="restoreTrash('${x.id}')">♻️ Restaurer</button></div>`).join(''):'<div class="empty">Aucun compte à récupérer</div>';
+  }catch(e){}
+}
+async function createPromo(){
+  const code=document.getElementById('pr-code').value, days=document.getElementById('pr-days').value, maxUses=document.getElementById('pr-uses').value, unique=document.getElementById('pr-unique').checked;
+  const r=await fetch('/api/admin/promos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,days,maxUses,unique})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) return alert('⚠️ '+(d.error||'Impossible'));
+  document.getElementById('pr-code').value=''; loadPdgExtras();
+}
+async function cancelPromo(id){ await fetch('/api/admin/promos/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}); loadPdgExtras(); }
+async function createPartner(){
+  const nom=document.getElementById('pt-nom').value, tel=document.getElementById('pt-tel').value;
+  const r=await fetch('/api/admin/partners',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom,tel})});
+  if(r.ok){ document.getElementById('pt-nom').value=''; document.getElementById('pt-tel').value=''; loadPdgExtras(); }
+}
+async function restoreTrash(id){ await fetch('/api/admin/trash/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}); loadPdgExtras(); loadAll(); }
+async function savePayDest(){
+  const wave=(document.getElementById('pay-wave').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  await fetch('/api/admin/paydest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wave, om:document.getElementById('pay-om').value, moov:document.getElementById('pay-moov').value, hide:document.getElementById('pay-hide').checked})});
+  alert('✓ Numéros enregistrés');
+}
+loadAll();
+connectWS();
+setInterval(loadHqChat, 12000);
+setInterval(loadAll, 12000); // secours
+</script>
+<style>
+/* 🗂️ HQ : volets pliables — le quotidien ouvert, le long refermé */
+.panel > h3{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.panel > h3 .fold-ic{color:var(--muted);font-size:13px;flex:none;transition:transform .15s}
+.panel.folded > *:not(h3){display:none !important}
+.panel{transition:box-shadow .15s}
+.panel > h3:hover{background:rgba(255,255,255,.02)}
+</style>
+<script>
+/* 🗂️ Système de volets du tableau de bord (PDG comme gestionnaire)
+   — chaque panneau se replie/déplie au clic sur son titre
+   — la préférence est mémorisée sur cet appareil (lien : klean_hq_fold_v2) */
+(function(){
+  const STORE = 'klean_hq_fold_v2';
+  function load(){ try{ return JSON.parse(localStorage.getItem(STORE) || '{}'); }catch(e){ return {}; } }
+  function save(m){ try{ localStorage.setItem(STORE, JSON.stringify(m)); }catch(e){} }
+  /* ouvert par défaut : le quotidien — fermé par défaut : tout ce qui est long/archivé */
+  const FOLD_BY_DEFAULT = ['équipe dirigeante', 'affiche', "chiffre d'affaires", 'réglages', "journal d'audit", 'journal temps réel', 'professionnels', 'personnes inscrites'];
+  const OPEN_BY_DEFAULT = ['vérification', 'support', 'missions'];
+  function isFoldByDefault(titre){
+    const t = (titre || '').toLowerCase();
+    if (OPEN_BY_DEFAULT.some(k => t.includes(k))) return false;
+    return FOLD_BY_DEFAULT.some(k => t.includes(k));
+  }
+  function keyOf(panel, i, titre){
+    if (panel.id) return panel.id;
+    return 'panel-' + i + '-' + (titre || '').toLowerCase().replace(/[^a-zàâéèêëâôûùç]+/gi, '-').slice(0, 30);
+  }
+  function refresh(){
+    const mem = load();
+    document.querySelectorAll('.panel').forEach((p, i) => {
+      const h3 = p.querySelector('h3');
+      if (!h3) return;
+      const k = keyOf(p, i, h3.textContent || '');
+      let ic = h3.querySelector('.fold-ic');
+      if (!ic) {
+        ic = document.createElement('span');
+        ic.className = 'fold-ic';
+        h3.appendChild(ic);
+        h3.addEventListener('click', () => {
+          const f = !p.classList.contains('folded');
+          p.classList.toggle('folded', f);
+          const m = load(); m[k] = f; save(m);
+          ic.textContent = f ? '▸' : '▾';
+          ic.style.transform = f ? 'rotate(-90deg)' : '';
+        });
+      }
+      const folded = (k in mem) ? mem[k] : isFoldByDefault(h3.textContent || '');
+      p.classList.toggle('folded', folded);
+      ic.textContent = folded ? '▸' : '▾';
+      ic.style.transform = folded ? 'rotate(-90deg)' : '';
+    });
+  }
+  window.addEventListener('load', refresh);
+  /* re-annoter après chaque rechargement complet (les contenus arrivent en websock) */
+  setInterval(() => { if (document.querySelector('.panel .fold-ic') === null) refresh(); }, 4000);
+  document.addEventListener && document.addEventListener('DOMContentLoaded', refresh);
 })();
-async function payAct(id, act){
-  const ok=confirm(act==='validate'?'✅ Valider et ouvrir 1 an d\'abonnement pour cette famille ?':'✗ Rejeter cette preuve ?');
-  if(!ok) return;
-  const r=await fetch('/api/admin/payments/'+act,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  if(r.ok){ toast(act==='validate'?'🎉 Abonnement ouvert — parent prévenu':'✗ Preuve rejetée — parent prévenu'); loadBossState(); }
-}
 </script>
 </body>
 </html>

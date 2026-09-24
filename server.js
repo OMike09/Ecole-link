@@ -1,753 +1,171 @@
-/* ════════════════════════════════════════════════════════════════
-   🟠 ÉCOLE LINK — Serveur central (pont école ↔ parents)
-   ─────────────────────────────────────────────────────────────────
-   Node 18+ — base locale db.json (auto-créée), WebSocket maison,
-   notifications web (VAPID) si web-push installé.
-   ════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   🖥️  SERVEUR CENTRAL KLEAN — Côte d'Ivoire
+   ----------------------------------------------------------------
+   Node.js pur (aucune dépendance). Rôles :
+   1) Sert l'application (index.html, net.js) sur le port 8000
+   2) API REST  : agents, missions, acceptation, statuts
+   3) WebSocket : temps réel — les agents en ligne reçoivent les
+      demandes instantanément ; le client suit sa mission en direct
+   4) Calcul de la commission plateforme (25% par défaut)
+   ----------------------------------------------------------------
+   Données persistées dans db.json (remplacer par PostgreSQL/Redis
+   en production).
+   ═══════════════════════════════════════════════════════════════ */
 'use strict';
 const http = require('http');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+let APP_VERSION = 'v7.10';
+try { APP_VERSION = 'v' + require('./package.json').version; } catch (e) { }
+let webpush = null; try { webpush = require('web-push'); } catch (e) { console.log('ℹ️  web-push non installé — alertes poche désactivées (npm install web-push)'); }
 
-const CATALOG = require('./catalog-ci.json');
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8000;
+const PLATFORM_FEE = 0.25;            // taux par défaut si le PDG n'a rien réglé
+const feePct = () => { const c = db.config && db.config.commission; return ((typeof c === 'number' && isFinite(c) && c >= 0 && c <= 50) ? c : 25) / 100; };
+const loginTries = new Map();          // anti force-brute connexion HQ (mémoire, par IP)
+function auditLog(kind, data) { try { (db.audit = db.audit || []).push({ at: nowISO(), kind, ...(data || {}) }); if (db.audit.length > 800) db.audit = db.audit.slice(-800); } catch (e) { } }            // ← COMMISSION PLATEFORME (25%)
 const DB_FILE = path.join(__dirname, 'db.json');
-const APP_NAME = 'ÉCOLE LINK';
-const SUB_PRICE = 3000;            // 3 000 F / an / famille
-const SUB_DAYS = 365;
-const TRIAL_DAYS = 30;
 
-let webpush = null;
-try { webpush = require('web-push'); } catch (e) { console.log('ℹ️  web-push non installé — notifications poche désactivées (npm install web-push)'); }
-let pg = null;
-try { pg = require('pg'); } catch (e) { /* optionnel : repli fichier */ }
-
-/* ───────── Base de données ─────────
-   🐘 Si DATABASE_URL (Neon) est posée : coffre permanent (table el_kv, un document JSON).
-   📁 Sinon : fichier db.json local (développement / tests) — le code ne change pas d'un iota. */
-function freshDb() {
-  return {
-    settings: { price: SUB_PRICE, trialDays: TRIAL_DAYS, vapid: null, secret: crypto.randomBytes(20).toString('hex'), ownerPassHash: null, ownerSalt: null },
-    schools: [], staff: [], classes: [], students: [], parents: [],
-    attendance: [], absences: [], announcements: [], payments: [], notifications: [], audit: []
-  };
-}
-let db;
-let pgClient = null, pgSaveTimer = null, pgDirty = false;
-function saveDb() {
-  try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); } catch (e) {}
-  if (!pgClient) return;
-  pgDirty = true;
-  if (pgSaveTimer) return;
-  pgSaveTimer = setTimeout(async () => {
-    pgSaveTimer = null;
-    if (!pgDirty) return;
-    pgDirty = false;
-    try {
-      await pgClient.query('INSERT INTO el_kv(key, data, updated_at) VALUES($1, $2::jsonb, NOW()) ON CONFLICT (key) DO UPDATE SET data = $2::jsonb, updated_at = NOW()', ['db', JSON.stringify(db)]);
-    } catch (e) { console.log('⚠️ Sauvegarde Neon :', e.message); pgDirty = true; }
-  }, 1200);
-}
-async function initDb() {
-  if (process.env.DATABASE_URL && pg) {
-    try {
-      pgClient = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-      await pgClient.connect();
-      await pgClient.query('CREATE TABLE IF NOT EXISTS el_kv (key TEXT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT now())');
-      const r = await pgClient.query('SELECT data FROM el_kv WHERE key = $1', ['db']);
-      if (r.rows.length && r.rows[0].data) {
-        db = r.rows[0].data;
-        try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); } catch (e) {}
-        console.log('🐘 Base chargée depuis Neon — les données sont en sécurité ✓');
-        return;
-      }
-      db = freshDb();
-      await pgClient.query('INSERT INTO el_kv(key, data) VALUES($1, $2::jsonb) ON CONFLICT (key) DO NOTHING', ['db', JSON.stringify(db)]);
-      try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); } catch (e) {}
-      console.log('🐘 Neon : coffre frais créé ✓');
-      return;
-    } catch (e) {
-      console.log('⚠️ Neon injoignable (' + e.message + ') — repli sur le fichier local db.json');
-      try { if (pgClient) await pgClient.end(); } catch (e2) {}
-      pgClient = null;
-    }
-  }
-  try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { db = freshDb(); saveDb(); }
-}
+/* ───────── Sécurité HQ : mot de passe robuste créé par le propriétaire ─────────
+   Stocké hashé + salé (SHA-256) dans db.json. Jamais en clair.
+   Option : pré-initialiser via la variable d'environnement ADMIN_PIN au 1er démarrage. */
 function sha256(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
-function uid(p) { return p + '-' + crypto.randomBytes(6).toString('hex').toUpperCase(); }
-function nowISO() { return new Date().toISOString(); }
-function today() { return new Date().toISOString().slice(0, 10); }
-function daysFromNow(n) { return Date.now() + n * 86400000; }
-function hashPassword(salt, pw) { return sha256(salt + '::' + String(pw)); }
+function adminToken() { return db.admin ? sha256(db.admin.passHash + '::klean-hq') : 'aucun-mot-de-passe'; }
 function validPassword(pw) {
-  pw = String(pw || '');
-  if (pw.length < 8) return 'Au moins 8 caractères';
-  if (!/[a-zA-Z]/.test(pw)) return 'Contient une lettre';
-  if (!/[0-9]/.test(pw)) return 'Contient un chiffre';
+  if (typeof pw !== 'string' || pw.length < 8) return 'Au moins 8 caractères requis';
+  if (!/[A-Za-z]/.test(pw)) return 'Ajoutez au moins une lettre';
+  if (!/[0-9]/.test(pw)) return 'Ajoutez au moins un chiffre';
+  if (!/[^A-Za-z0-9\s]/.test(pw)) return 'Ajoutez au moins un symbole (! @ # $ % …)';
+  return null; // OK
+}
+function hashPassword(salt, pw) { return sha256(salt + '::' + pw); }
+
+/* Comptes clients : jeton de session dérivé du hash du mot de passe */
+function clientToken(passHash) { return sha256(passHash + '::klean-client'); }
+function findClientByToken(req) {
+  const tk = req.headers['x-client-token'];
+  if (!tk || !db.clients) return null;
+  return db.clients.find(cl => clientToken(cl.passHash) === tk) || null;
+}
+
+/* Accès HQ : cookie = jeton dérivé du hash du mot de passe */
+function isAdminReq(req) {
+  const c = req.headers.cookie || '';
+  return !!hqIdentity(req);
+}
+
+/* 👑 Hiérarchie : PDG (jeton inchangé) + gestionnaires (comptes créés depuis le HQ) */
+function normIdent(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+function gestTokenOf(ad) { return sha256(ad.passHash + '::klean-hq:' + ad.id); }
+function hqIdentity(req) {
+  const c = req.headers.cookie || '';
+  for (const part of c.split(';')) {
+    const t = part.trim();
+    if (!t.startsWith('klean_hq=')) continue;
+    const tok = t.slice(9);
+    try {
+      if (tok === adminToken()) return { role: 'pdg', nom: 'PDG' };
+      const ad = (db.admins || []).find(a => !a.blocked && gestTokenOf(a) === tok);
+      if (ad) return { role: 'gest', nom: ad.nom, id: ad.id };
+    } catch (e) { }
+  }
   return null;
 }
-function parentToken(passHash) { return sha256('PT::' + passHash + '::' + db.settings.secret); }
-function auditLog(kind, data) { db.audit.push({ at: nowISO(), kind, data }); if (db.audit.length > 400) db.audit = db.audit.slice(-400); }
-
-/* ───────── Sessions admin/école (mémoire — relogin au redémarrage) ───────── */
-const sessions = new Map(); // sid -> {role:'boss'|'staff', staffId, at}
-function newSession(obj) { const sid = crypto.randomBytes(24).toString('hex'); sessions.set(sid, { ...obj, at: Date.now() }); return sid; }
-function getSession(req) {
-  const c = /(?:^|;\s*)elsid=([0-9a-f]+)/.exec(req.headers.cookie || '');
-  return c && sessions.get(c[1]) ? { sid: c[1], ...sessions.get(c[1]) } : null;
+function pdgOnly(req, res) { const id = hqIdentity(req); if (!id || id.role !== 'pdg') { sendJson(res, 403, { error: 'Réservé au PDG' }); return false; } return true; }
+function act(req) { const id = hqIdentity(req); return (id && id.nom) || 'PDG'; }
+function actorId(req) { const id = hqIdentity(req); return id ? (id.role === 'pdg' ? 'pdg' : id.id) : null; }
+function isPdg(req) { const id = hqIdentity(req); return id && id.role === 'pdg'; }
+function ownsRecord(req, rec) {
+  if (isPdg(req)) return true;
+  const id = actorId(req);
+  return rec && rec.createdById === id;
 }
-function setCookie(res, sid) { res.setHeader('Set-Cookie', 'elsid=' + sid + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200'); }
-
-/* ───────── HTTP helpers ───────── */
-function sendJson(res, code, obj, head) {
-  const b = Buffer.from(JSON.stringify(obj));
-  res.writeHead(code, Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': b.length, 'Cache-Control': 'no-store' }, head || {}));
-  res.end(b);
-}
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let n = 0; const chunks = [];
-    req.on('data', c => { n += c.length; if (n > 9e6) { reject(new Error('payload')); req.destroy(); return; } chunks.push(c); });
-    req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch (e) { reject(e); } });
-    req.on('error', reject);
-  });
-}
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.css': 'text/css; charset=utf-8', '.ico': 'image/x-icon' };
-
-/* ───────── Auth accès ───────── */
-function findParentByToken(req) {
-  const t = req.headers['x-parent-token'];
-  if (!t) return null;
-  return db.parents.find(p => parentToken(p.passHash) === t && !p.blocked) || null;
-}
-function staffOf(sess) { return sess && sess.role === 'staff' ? db.staff.find(x => x.id === sess.staffId) : null; }
-
-/* ───────── Modèle d'affaires : abonnement famille ───────── */
-function priceOf() {
-  const p = db.settings && db.settings.price;
-  return (typeof p === 'number' && isFinite(p) && p >= 0) ? Math.round(p) : SUB_PRICE;
-}
-function trialDaysOf() {
-  const t = db.settings && db.settings.trialDays;
-  return (typeof t === 'number' && isFinite(t) && t >= 0 && t <= 365) ? Math.round(t) : TRIAL_DAYS;
-}
-function isFree() { return priceOf() === 0; }
-function subOf(parent) {
-  if (isFree()) return { active: true, trialDaysLeft: 0, until: null, price: 0, free: true };
-  const now = Date.now();
-  const trial = parent.trialEnd || 0, sub = parent.subUntil || 0;
-  const active = now < trial || now < sub;
-  const trialDaysLeft = trial ? Math.max(0, Math.ceil((trial - now) / 86400000)) : 0;
-  const until = sub > now ? new Date(sub).toISOString().slice(0, 10) : null;
-  return { active, trialDaysLeft, until, price: priceOf(), free: false };
-}
-function parentsOfStudent(studentId) { return db.parents.filter(p => (p.children || []).some(c => c.studentId === studentId)); }
-function childrenOf(parent) {
-  return (parent.children || []).map(li => db.students.find(s => s.id === li.studentId)).filter(Boolean);
-}
-function targetParents(a) {
-  /* qui reçoit l'annonce ? */
-  let studs = [];
-  if (a.target.type === 'school') studs = db.students.filter(s => s.schoolId === a.schoolId);
-  else if (a.target.type === 'class') studs = db.students.filter(s => s.schoolId === a.schoolId && s.classId === a.target.classId);
-  const set = new Map();
-  studs.forEach(s => parentsOfStudent(s.id).forEach(p => set.set(p.id, p)));
-  return [...set.values()];
+function trashPush(kind, rec) {
+  db.trash = db.trash || [];
+  db.trash.unshift({ id: uid('TR'), kind, data: rec, at: nowISO() });
+  if (db.trash.length > 400) db.trash = db.trash.slice(0, 400);
 }
 
-/* ───────── Notifications (poche + temps réel + boîte interne) ───────── */
-function parentSockets(parentId) { return [...sockets].filter(s => s.meta && s.meta.role === 'parent' && s.meta.parentId === parentId); }
-function bossSockets() { return [...sockets].filter(s => s.meta && s.meta.role === 'boss'); }
-function schoolSockets(schoolId) { return [...sockets].filter(s => s.meta && s.meta.role === 'staff' && s.meta.schoolId === schoolId); }
-function vapidKeys() {
-  if (!webpush) return null;
-  if (!db.settings.vapid) {
-    const ecdh = crypto.createECDH('prime256v1'); ecdh.generateKeys();
-    db.settings.vapid = { publicKey: ecdh.getPublicKey(null, 'uncompressed').toString('base64url'), privateKey: ecdh.getPrivateKey().toString('base64url') };
-    saveDb(); console.log('🔑 Clés VAPID générées');
-  }
-  try { webpush.setVapidDetails('mailto:contact@ecolelink.ci', db.settings.vapid.publicKey, db.settings.vapid.privateKey); }
-  catch (e) { console.log('⚠️ VAPID invalide :', e.message); return null; }
-  return db.settings.vapid;
-}
-async function notifyParent(parent, icon, title, body, extra) {
-  const n = { id: uid('NT'), parentId: parent.id, icon, title, body, at: nowISO(), read: false, ...(extra || {}) };
-  db.notifications.push(n); if (db.notifications.length > 4000) db.notifications = db.notifications.slice(-4000);
-  saveDb();
-  broadcast(parentSockets(parent.id), { type: 'alerte', notification: n });
-  if (webpush && vapidKeys() && Array.isArray(parent.pushSubs)) {
-    const payload = JSON.stringify({ title: icon + ' ' + title, body, url: '/?onglet=ecole' });
-    let dirty = false;
-    for (const sub of [...parent.pushSubs]) {
-      try { await webpush.sendNotification(sub, payload, { TTL: 3600, urgency: extra && extra.urgent ? 'high' : 'normal' }); }
-      catch (e) { const c = e && (e.statusCode || e.status); if (c === 404 || c === 410) { parent.pushSubs = parent.pushSubs.filter(s => s.endpoint !== sub.endpoint); dirty = true; } }
+/* ───────── Stockage : fichier local  OU  Postgres (Neon gratuit) si DATABASE_URL ─────────
+   Sur Render (hébergement gratuit), le disque est effacé à chaque redémarrage :
+   → mettez DATABASE_URL (Neon, gratuit sans CB) dans Render ≥ Environment,
+     et les comptes/missions survivront à tous les redémarrages. */
+let db = { agents: [], missions: [], clients: [] };
+let pgClient = null;
+async function pgQuery(sql, params) { const r = await pgClient.query(sql, params); return r; }
+async function initStorage() {
+  if (process.env.DATABASE_URL) {
+    try {
+      const { Client } = require('pg');
+      pgClient = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pgClient.connect();
+      await pgClient.query('CREATE TABLE IF NOT EXISTS klean_state (id smallint PRIMARY KEY, data jsonb NOT NULL, updated timestamptz NOT NULL DEFAULT now())');
+      const r = await pgClient.query('SELECT data FROM klean_state WHERE id=1');
+      if (r.rows.length) db = r.rows[0].data;
+      else {
+        /* 📦 Première connexion Neon : on TRANSPLANTE les comptes actuels (db.json) — rien n'est perdu */
+        try {
+          db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+          console.log('  📦 Migration automatique db.json → Postgres : vos comptes existants suivent ✓');
+        } catch (e) { /* départ neuf */ }
+        await pgClient.query('INSERT INTO klean_state (id, data) VALUES (1, $1)', [JSON.stringify(db)]);
+      }
+      console.log('  💾 Stockage : Postgres (Neon) — données persistantes ✓');
+    } catch (e) {
+      pgClient = null;
+      console.log('  ⚠️  DATABASE_URL injoignable (' + e.message + ') → bascule fichier local');
     }
-    if (dirty) saveDb();
   }
-  return n;
-}
-function notifySchool(schoolId, icon, title, body) {
-  broadcast(schoolSockets(schoolId), { type: 'alerte_ecole', icon, title, body, at: nowISO() });
-}
-function schoolName(id) { const s = db.schools.find(x => x.id === id); return s ? s.nom : '—'; }
-function className(id) { const c = db.classes.find(x => x.id === id); return c ? c.nom : '—'; }
-
-/* ═══════════ ROUTES ═══════════ */
-async function handleApi(req, res, p, url) {
-  /* ---- Santé & config ---- */
-  if (p === '/api/health') return sendJson(res, 200, { ok: true, app: APP_NAME, at: nowISO() });
-  if (p === '/api/catalog' && req.method === 'GET') {
-    const q = (url.searchParams.get('ville') || '').trim();
-    if (!q) {
-      return sendJson(res, 200, {
-        villes: (CATALOG.villes || []).map(v => ({ nom: v.nom, n: (v.ecoles || []).length }))
-      });
-    }
-    const v = (CATALOG.villes || []).find(x => x.nom === q);
-    if (!v) return sendJson(res, 404, { error: 'Ville introuvable' });
-    const live = db.schools.map(s => (s.nom || '').toLowerCase());
-    return sendJson(res, 200, {
-      ville: v.nom,
-      ecoles: (v.ecoles || []).map(e => ({
-        ...e,
-        surPlateforme: live.some(n => n.includes((e.nom || '').toLowerCase().slice(0, 18)))
-      }))
-    });
+  if (!pgClient) {
+    try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) {}
+    console.log('  💾 Stockage : fichier db.json (local)');
   }
-  if (p === '/api/config') return sendJson(res, 200, { price: priceOf(), trialDays: trialDaysOf(), subDays: SUB_DAYS, free: isFree(), vapid: vapidKeys() ? db.settings.vapid.publicKey : null });
-
-  /* ---- PDG : premier mot de passe puis connexion ---- */
-  if (p === '/api/admin/setup' && req.method === 'POST') {
-    const b = await readBody(req);
-    if (db.settings.ownerPassHash) return sendJson(res, 409, { error: 'Déjà initialisé — connectez-vous' });
-    const perr = validPassword(b.password);
-    if (perr) return sendJson(res, 400, { error: perr });
-    db.settings.ownerSalt = crypto.randomBytes(12).toString('hex');
-    db.settings.ownerPassHash = hashPassword(db.settings.ownerSalt, b.password);
-    saveDb();
-    const sid = newSession({ role: 'boss' }); setCookie(res, sid);
-    auditLog('pdg_init', {});
-    return sendJson(res, 200, { ok: true });
-  }
-  if (p === '/api/admin/login' && req.method === 'POST') {
-    const b = await readBody(req);
-    const ok = db.settings.ownerPassHash && hashPassword(db.settings.ownerSalt, b.password || '') === db.settings.ownerPassHash;
-    if (!ok) return sendJson(res, 401, { error: 'Mot de passe incorrect' });
-    const sid = newSession({ role: 'boss' }); setCookie(res, sid);
-    return sendJson(res, 200, { ok: true });
-  }
-  if (p === '/api/logout' && req.method === 'POST') {
-    const s = getSession(req); if (s) sessions.delete(s.sid);
-    res.setHeader('Set-Cookie', 'elsid=; Path=/; HttpOnly; Max-Age=0');
-    return sendJson(res, 200, { ok: true });
-  }
-
-  /* ---- Parents : public compte ---- */
-  if (p === '/api/parents/register' && req.method === 'POST') {
-    const b = await readBody(req);
-    if (!b.nom || String(b.nom).trim().length < 2) return sendJson(res, 400, { error: 'Indiquez votre nom complet' });
-    const tel = String(b.tel || '').replace(/\D/g, '');
-    if (tel.length < 8) return sendJson(res, 400, { error: 'Numéro de téléphone invalide' });
-    const perr = validPassword(b.password);
-    if (perr) return sendJson(res, 400, { error: perr });
-    if (db.parents.find(x => x.tel === tel)) return sendJson(res, 409, { error: 'Ce numéro a déjà un compte — connectez-vous' });
+  db.agents = db.agents || []; db.missions = db.missions || []; db.clients = db.clients || [];
+  if (!db.config || typeof db.config.commission !== 'number') db.config = { commission: 25, updatedAt: null };
+  db.config.payDest = db.config.payDest || { wave: ['0100277521', '0709076130'], om: '0709076130', moov: '0100277521', hide: false };
+  if (!db.audit) db.audit = [];
+  db.supportMsgs = db.supportMsgs || [];
+  db.admins = db.admins || [];
+  db.trash = db.trash || [];
+  db.promos = db.promos || [];
+  db.partners = db.partners || [];
+  db.hqChat = db.hqChat || [];
+  db.accountRequests = db.accountRequests || [];
+  db.mutedChats = db.mutedChats || [];
+  /* Pré-initialisation optionnelle du mot de passe via ADMIN_PIN (1er démarrage seulement) */
+  if (!db.admin && process.env.ADMIN_PIN) {
     const salt = crypto.randomBytes(12).toString('hex');
-    const par = { id: uid('PA'), nom: String(b.nom).trim(), tel, salt, passHash: hashPassword(salt, b.password), createdAt: nowISO(), children: [], trialEnd: isFree() ? 0 : daysFromNow(trialDaysOf()), subUntil: 0, pushSubs: [], blocked: false, read: {}, rsvp: {} };
-    db.parents.push(par); saveDb();
-    console.log('👨‍👩‍👧 Nouveau parent : ' + par.nom + ' (' + tel + ') — ' + (isFree() ? 'accès gratuit' : ('essai ' + trialDaysOf() + ' jours')));
-    return sendJson(res, 201, { ok: true, parentId: par.id, token: parentToken(par.passHash), nom: par.nom });
+    db.admin = { salt, passHash: hashPassword(salt, process.env.ADMIN_PIN) };
+    saveDb();
   }
-  if (p === '/api/parents/login' && req.method === 'POST') {
-    const b = await readBody(req);
-    const tel = String(b.tel || '').replace(/\D/g, '');
-    const par = db.parents.find(x => x.tel === tel);
-    if (!par || hashPassword(par.salt, b.password || '') !== par.passHash) return sendJson(res, 401, { error: 'Téléphone ou mot de passe incorrect' });
-    if (par.blocked) return sendJson(res, 403, { error: 'Compte bloqué — contactez la plateforme' });
-    return sendJson(res, 200, { ok: true, parentId: par.id, token: parentToken(par.passHash), nom: par.nom, photo: par.photo || '' });
-  }
-
-  /* =================== PARENT (X-Parent-Token) =================== */
-  if (p.startsWith('/api/parents/') || p === '/api/parents/me') {
-    const par = findParentByToken(req);
-    if (!par) return sendJson(res, 401, { error: 'Session parent requise' });
-
-    if (p === '/api/parents/me' && req.method === 'GET') {
-      return sendJson(res, 200, {
-        nom: par.nom, tel: par.tel, photo: par.photo || '',
-        sub: subOf(par),
-        unread: db.notifications.filter(n => n.parentId === par.id && !n.read).length,
-        children: childrenOf(par).map(s => ({
-          id: s.id, nom: s.nom, prenom: s.prenom, sex: s.sex || '', photo: s.photo || '',
-          school: schoolName(s.schoolId), classe: className(s.classId), classId: s.classId, schoolId: s.schoolId,
-          today: todayStatus(s.id)
-        }))
-      });
-    }
-    if (p === '/api/parents/me' && req.method === 'PUT') {
-      const b = await readBody(req);
-      if (b.nom && String(b.nom).trim().length >= 2) par.nom = String(b.nom).trim().slice(0, 80);
-      if (typeof b.photo === 'string' && b.photo.length < 600000) par.photo = b.photo;
-      saveDb();
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/parents/claim' && req.method === 'POST') {
-      const b = await readBody(req);
-      const code = String(b.code || '').replace(/\D/g, '');
-      const st = db.students.find(s => s.linkCode === code);
-      if (!st) return sendJson(res, 404, { error: 'Code inconnu — demandez-le à l\'école' });
-      if ((par.children || []).some(c => c.studentId === st.id)) return sendJson(res, 409, { error: 'Cet enfant est déjà dans votre famille' });
-      st.linkCode = null;
-      (par.children = par.children || []).push({ studentId: st.id, since: nowISO() });
-      saveDb();
-      auditLog('enfant_lie', { parent: par.nom, enfant: st.prenom + ' ' + st.nom, ecole: schoolName(st.schoolId) });
-      notifySchool(st.schoolId, '🤝', 'Famille liée', par.nom + ' a rejoint le suivi de ' + st.prenom + ' ' + st.nom);
-      return sendJson(res, 200, { ok: true, enfant: st.prenom + ' ' + st.nom, ecole: schoolName(st.schoolId), classe: className(st.classId) });
-    }
-    if (p === '/api/parents/feed' && req.method === 'GET') {
-      const kls = new Set(childrenOf(par).map(s => s.classId));
-      const anns = db.announcements
-        .filter(a => a.target.type === 'school'
-          ? childrenOf(par).some(c => c.schoolId === a.schoolId)
-          : kls.has(a.target.classId))
-        .slice(-60).reverse()
-        .map(a => ({
-          id: a.id, title: a.title, body: a.body, cat: a.cat, at: a.at, pic: a.pic || '',
-          school: schoolName(a.schoolId), classe: a.target.type === 'class' ? className(a.target.classId) : '',
-          reunionAt: a.reunionAt || null,
-          read: !!(par.read && par.read[a.id]),
-          ack: !!(par.ack && par.ack[a.id]),
-          rsvp: (par.rsvp && par.rsvp[a.id]) || null
-        }));
-      const notes = db.notifications.filter(n => n.parentId === par.id).slice(-60).reverse();
-      return sendJson(res, 200, { announcements: anns, notifications: notes });
-    }
-    if (p === '/api/parents/read' && req.method === 'POST') {
-      const b = await readBody(req);
-      if (b.notificationId) { const n = db.notifications.find(x => x.id === b.notificationId && x.parentId === par.id); if (n) n.read = true; }
-      if (b.announcementId) { (par.read = par.read || {})[b.announcementId] = nowISO(); }
-      saveDb();
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/parents/ack' && req.method === 'POST') {
-      const b = await readBody(req);
-      const a = db.announcements.find(x => x.id === b.announcementId);
-      if (!a) return sendJson(res, 404, { error: 'Message introuvable' });
-      (par.read = par.read || {})[a.id] = nowISO();
-      (par.ack = par.ack || {})[a.id] = nowISO();
-      saveDb();
-      notifySchool(a.schoolId, '📩', 'Message reçu', par.nom + ' a confirmé la réception de « ' + a.title + ' »');
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/parents/rsvp' && req.method === 'POST') {
-      const b = await readBody(req);
-      const a = db.announcements.find(x => x.id === b.announcementId);
-      if (!a) return sendJson(res, 404, { error: 'Annonce introuvable' });
-      if (!['oui', 'non'].includes(b.resp)) return sendJson(res, 400, { error: 'Réponse oui/non attendue' });
-      (par.rsvp = par.rsvp || {})[a.id] = { resp: b.resp, at: nowISO() };
-      saveDb();
-      notifySchool(a.schoolId, '🗳️', 'Réponse à une convocation', par.nom + ' : ' + (b.resp === 'oui' ? '✅ présent(e)' : '❌ absent(e)') + ' — « ' + a.title + ' »');
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/parents/absences' && req.method === 'GET') {
-      const mine = db.absences.filter(x => x.parentId === par.id).slice(-40).reverse()
-        .map(x => ({ ...x, enfant: childNameOf(x.studentId), ecole: schoolName(x.schoolId) }));
-      return sendJson(res, 200, mine);
-    }
-    if (p === '/api/parents/absences' && req.method === 'POST') {
-      const b = await readBody(req);
-      const st = childrenOf(par).find(s => s.id === b.studentId);
-      if (!st) return sendJson(res, 404, { error: 'Enfant introuvable' });
-      if (!String(b.note || '').trim() && b.kind !== 'maladie') return sendJson(res, 400, { error: 'Précisez le motif en quelques mots' });
-      const rec = { id: uid('AB'), parentId: par.id, studentId: st.id, schoolId: st.schoolId, kind: String(b.kind || 'maladie'), from: b.from || today(), to: b.to || today(), note: String(b.note || '').slice(0, 400), certPhoto: String(b.certPhoto || '').slice(0, 600000), status: 'envoyee', at: nowISO() };
-      db.absences.push(rec); saveDb();
-      auditLog('absence_signalee', { par: par.nom, enfant: st.prenom, motif: rec.kind });
-      notifySchool(st.schoolId, '🤒', 'Absence déclarée', par.nom + ' — ' + st.prenom + ' ' + st.nom + ' absent(e) (' + rec.kind + ') du ' + rec.from + (rec.to !== rec.from ? ' au ' + rec.to : ''));
-      return sendJson(res, 201, { ok: true });
-    }
-    if (p === '/api/parents/attendance' && req.method === 'GET') {
-      const sid = url.searchParams.get('studentId');
-      const st = childrenOf(par).find(s => s.id === sid);
-      if (!st) return sendJson(res, 404, { error: 'Enfant introuvable' });
-      const rows = [];
-      for (const d of db.attendance.slice(-300)) {
-        const r = (d.rows || []).find(x => x.studentId === sid);
-        if (r) rows.push({ date: d.date, status: r.status });
-      }
-      return sendJson(res, 200, rows.slice(-60).reverse());
-    }
-    if (p === '/api/parents/pay' && req.method === 'POST') {
-      const b = await readBody(req);
-      if (!String(b.ref || '').trim()) return sendJson(res, 400, { error: 'Indiquez la référence de la transaction' });
-      const pay = { id: uid('PY'), parentId: par.id, parent: par.nom, tel: par.tel, amount: SUB_PRICE, method: String(b.method || 'wave'), ref: String(b.ref).slice(0, 60), status: 'pending', at: nowISO() };
-      db.payments.push(pay); saveDb();
-      auditLog('abonnement_paye_en_attente', { parent: par.nom, method: pay.method, ref: pay.ref });
-      broadcast(bossSockets(), { type: 'paiement', payment: pay });
-      return sendJson(res, 201, { ok: true, message: 'Paiement reçu — validation par la plateforme sous 24 h max. Merci ! 🧡' });
-    }
-    if (p === '/api/parents/payments' && req.method === 'GET') {
-      return sendJson(res, 200, db.payments.filter(x => x.parentId === par.id).slice(-12).reverse());
-    }
-    if (p === '/api/parents/push-sub' && req.method === 'POST') {
-      const b = await readBody(req);
-      (par.pushSubs = par.pushSubs || []);
-      if (b.sub && b.sub.endpoint && !par.pushSubs.some(s => s.endpoint === b.sub.endpoint)) par.pushSubs.push(b.sub);
-      saveDb();
-      return sendJson(res, 200, { ok: true });
-    }
-  }
-
-  /* =================== ÉCOLE (staff) =================== */
-  if (p === '/api/school/login' && req.method === 'POST') {
-    const b = await readBody(req);
-    const tel = String(b.tel || '').replace(/\D/g, '');
-    const st = db.staff.find(x => x.tel === tel);
-    if (!st || hashPassword(st.salt, b.password || '') !== st.passHash) return sendJson(res, 401, { error: 'Téléphone ou mot de passe incorrect' });
-    const sid = newSession({ role: 'staff', staffId: st.id }); setCookie(res, sid);
-    return sendJson(res, 200, { ok: true, nom: st.nom, role: st.role, school: schoolName(st.schoolId) });
-  }
-  if (p.startsWith('/api/school/')) {
-    const sess = getSession(req); const me = staffOf(sess);
-    if (!me) return sendJson(res, 403, { error: 'Connexion école requise' });
-    const mySchool = me.schoolId;
-
-    if (p === '/api/school/me' && req.method === 'GET') {
-      const t = todayRows(mySchool);
-      return sendJson(res, 200, {
-        nom: me.nom, role: me.role, school: schoolName(mySchool),
-        classes: db.classes.filter(c => c.schoolId === mySchool).map(c => ({
-          id: c.id, nom: c.nom,
-          effectif: db.students.filter(s => s.classId === c.id).length,
-          pointe: !!db.attendance.find(d => d.classId === c.id && d.date === today())
-        })),
-        today: t,
-        stats7: stats7(mySchool)
-      });
-    }
-    if (p === '/api/school/classes' && req.method === 'POST') {
-      if (me.role !== 'directeur') return sendJson(res, 403, { error: 'Le directeur seul crée les classes' });
-      const b = await readBody(req);
-      if (!String(b.nom || '').trim()) return sendJson(res, 400, { error: 'Nom de la classe requis' });
-      const c = { id: uid('CL'), schoolId: mySchool, nom: String(b.nom).trim().slice(0, 40), createdAt: nowISO() };
-      db.classes.push(c); saveDb();
-      return sendJson(res, 201, { ok: true });
-    }
-    if (p === '/api/school/students' && req.method === 'GET') {
-      const cid = url.searchParams.get('classId');
-      return sendJson(res, 200, db.students.filter(s => s.schoolId === mySchool && (!cid || s.classId === cid))
-        .map(s => ({ id: s.id, nom: s.nom, prenom: s.prenom, sex: s.sex || '', classId: s.classId, classe: className(s.classId), lie: parentsOfStudent(s.id).length, code: s.linkCode || null })));
-    }
-    if (p === '/api/school/students' && req.method === 'POST') {
-      const b = await readBody(req);
-      const cls = db.classes.find(c => c.id === b.classId && c.schoolId === mySchool);
-      if (!cls) return sendJson(res, 404, { error: 'Classe introuvable' });
-      if (String(b.nom || '').trim().length < 2 || String(b.prenom || '').trim().length < 2) return sendJson(res, 400, { error: 'Nom + prénom requis' });
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      const st = { id: uid('EL'), schoolId: mySchool, classId: cls.id, nom: String(b.nom).trim(), prenom: String(b.prenom).trim(), sex: ['F', 'M'].includes(b.sex) ? b.sex : '', createdAt: nowISO(), linkCode: code };
-      db.students.push(st); saveDb();
-      auditLog('eleve_cree', { par: me.nom, enfant: st.prenom + ' ' + st.nom, ecole: schoolName(mySchool) });
-      return sendJson(res, 201, { ok: true, code });
-    }
-    if (p === '/api/school/students/regen' && req.method === 'POST') {
-      const b = await readBody(req);
-      const st = db.students.find(s => s.id === b.studentId && s.schoolId === mySchool);
-      if (!st) return sendJson(res, 404, { error: 'Élève introuvable' });
-      st.linkCode = String(Math.floor(100000 + Math.random() * 900000)); saveDb();
-      return sendJson(res, 200, { ok: true, code: st.linkCode });
-    }
-    if (p === '/api/school/attendance' && req.method === 'GET') {
-      const cid = url.searchParams.get('classId'), date = url.searchParams.get('date') || today();
-      const d = db.attendance.find(x => x.classId === cid && x.date === date);
-      return sendJson(res, 200, d ? { date, rows: d.rows, pointeur: d.by } : { date, rows: null });
-    }
-    if (p === '/api/school/attendance' && req.method === 'POST') {
-      const b = await readBody(req);
-      const cls = db.classes.find(c => c.id === b.classId && c.schoolId === mySchool);
-      if (!cls) return sendJson(res, 404, { error: 'Classe introuvable' });
-      const rows = (Array.isArray(b.rows) ? b.rows : []).filter(r => ['present', 'absent', 'retard'].includes(r.status))
-        .map(r => ({ studentId: r.studentId, status: r.status }));
-      if (!rows.length) return sendJson(res, 400, { error: 'Aucune ligne valide' });
-      const date = today();
-      const old = db.attendance.find(x => x.classId === cls.id && x.date === date);
-      if (old) { old.rows = rows; old.by = me.nom; } else db.attendance.push({ id: uid('AT'), schoolId: mySchool, classId: cls.id, date, by: me.nom, rows });
-      saveDb();
-      /* notifications aux parents des absents (et retards) — la minute même du pointage */
-      for (const r of rows.filter(x => x.status !== 'present')) {
-        const st = db.students.find(s => s.id === r.studentId);
-        if (!st) continue;
-        for (const par of parentsOfStudent(st.id)) {
-          if (r.status === 'absent')
-            await notifyParent(par, '🚨', st.prenom + ' est absent(e) aujourd\'hui',
-              'L\'école ' + schoolName(mySchool) + ' a pointé ' + st.prenom + ' ' + st.nom + ' absent(e) ce ' + frDate(date) + ' (' + cls.nom + '). Si c\'est une erreur, contactez la direction.', { urgent: true });
-          else
-            await notifyParent(par, '⏰', st.prenom + ' est arrivé(e) en retard',
-              st.prenom + ' ' + st.nom + ' a été pointé(e) en retard ce ' + frDate(date) + ' (' + cls.nom + ', ' + schoolName(mySchool) + ').', {});
-        }
-      }
-      auditLog('pointage', { classe: cls.nom, par: me.nom, absents: rows.filter(r => r.status === 'absent').length, retards: rows.filter(r => r.status === 'retard').length });
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/school/announce' && req.method === 'GET') {
-      return sendJson(res, 200, db.announcements.filter(a => a.schoolId === mySchool).slice(-40).reverse().map(a => ({ ...a, stats: announceStats(a) })));
-    }
-    if (p === '/api/school/announce/receipts' && req.method === 'GET') {
-      const a = db.announcements.find(x => x.id === url.searchParams.get('id') && x.schoolId === mySchool);
-      if (!a) return sendJson(res, 404, { error: 'Annonce introuvable' });
-      const rows = targetParents(a).map(p2 => ({
-        nom: p2.nom, tel: p2.tel,
-        vu: !!(p2.read && p2.read[a.id]),
-        recu: !!(p2.ack && p2.ack[a.id]),
-        rsvp: (p2.rsvp && p2.rsvp[a.id] && p2.rsvp[a.id].resp) || null
-      }));
-      return sendJson(res, 200, { titre: a.title, rows });
-    }
-    if (p === '/api/school/announce' && req.method === 'POST') {
-      const b = await readBody(req);
-      if (!String(b.title || '').trim()) return sendJson(res, 400, { error: 'Titre requis' });
-      let target = { type: 'school' };
-      if (b.targetClassId) {
-        const cls = db.classes.find(c => c.id === b.targetClassId && c.schoolId === mySchool);
-        if (cls) target = { type: 'class', classId: cls.id };
-      }
-      const cat = ['info', 'urgent', 'reunion'].includes(b.cat) ? b.cat : 'info';
-      const a = { id: uid('AN'), schoolId: mySchool, title: String(b.title).trim().slice(0, 90), body: String(b.body || '').trim().slice(0, 1500), cat, pic: String(b.pic || '').slice(0, 600000), reunionAt: b.reunionAt || null, target, by: me.nom, at: nowISO() };
-      db.announcements.push(a); saveDb();
-      const cible = targetParents(a);
-      const icon = cat === 'urgent' ? '🚨' : cat === 'reunion' ? '📅' : '📣';
-      for (const par of cible) {
-        await notifyParent(par, icon, a.title, (a.body || '').slice(0, 160) + (cat === 'reunion' && a.reunionAt ? ' — 📅 ' + frDate(a.reunionAt) : ''), { announcementId: a.id, urgent: cat === 'urgent' });
-      }
-      auditLog('annonce_envoyee', { par: me.nom, titre: a.title, cibles: cible.length, cat });
-      return sendJson(res, 201, { ok: true, cibles: cible.length });
-    }
-    if (p === '/api/school/absences' && req.method === 'GET') {
-      return sendJson(res, 200, db.absences.filter(x => x.schoolId === mySchool).slice(-60).reverse()
-        .map(x => ({ ...x, enfant: childNameOf(x.studentId), parent: (db.parents.find(p2 => p2.id === x.parentId) || {}).nom || '' })));
-    }
-    if (p === '/api/school/absences/validate' && req.method === 'POST') {
-      const b = await readBody(req);
-      const x = db.absences.find(z => z.id === b.id && z.schoolId === mySchool);
-      if (!x) return sendJson(res, 404, { error: 'Déclaration introuvable' });
-      x.status = 'validee'; saveDb();
-      const par = db.parents.find(p2 => p2.id === x.parentId);
-      if (par) await notifyParent(par, '✅', 'Absence prise en compte', 'L\'école a validé l\'absence de ' + childNameOf(x.studentId) + ' (' + x.kind + '). Bon rétablissement à l\'enfant 🧡');
-      return sendJson(res, 200, { ok: true });
-    }
-  }
-
-  /* =================== PDG (plateforme) =================== */
-  if (p.startsWith('/api/admin/')) {
-    const sess = getSession(req);
-    if (!sess || sess.role !== 'boss') return sendJson(res, 403, { error: 'Accès plateforme — connexion requise' });
-
-    if (p === '/api/admin/config' && req.method === 'POST') {
-      const b = await readBody(req);
-      if (b.price != null) {
-        const pr = parseFloat(b.price);
-        if (isNaN(pr) || pr < 0 || pr > 500000) return sendJson(res, 400, { error: 'Prix entre 0 (gratuit) et 500 000 F' });
-        db.settings.price = Math.round(pr);
-      }
-      if (b.trialDays != null) {
-        const td = parseInt(b.trialDays, 10);
-        if (isNaN(td) || td < 0 || td > 365) return sendJson(res, 400, { error: 'Essai entre 0 et 365 jours' });
-        db.settings.trialDays = td;
-      }
-      saveDb();
-      auditLog('tarif_modifie', { price: priceOf(), trialDays: trialDaysOf(), par: 'pdg' });
-      return sendJson(res, 200, { ok: true, price: priceOf(), trialDays: trialDaysOf(), free: isFree() });
-    }
-    if (p === '/api/admin/password' && req.method === 'POST') {
-      const b = await readBody(req);
-      if (hashPassword(db.settings.ownerSalt, b.current || '') !== db.settings.ownerPassHash)
-        return sendJson(res, 401, { error: 'Mot de passe actuel incorrect' });
-      const perr = validPassword(b.next);
-      if (perr) return sendJson(res, 400, { error: perr });
-      db.settings.ownerSalt = crypto.randomBytes(12).toString('hex');
-      db.settings.ownerPassHash = hashPassword(db.settings.ownerSalt, b.next);
-      saveDb();
-      sessions.forEach((v, k) => { if (v.role === 'boss') sessions.delete(k); });
-      auditLog('mdp_pdg_change', {});
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/admin/state' && req.method === 'GET') {
-      return sendJson(res, 200, {
-        price: priceOf(), trialDays: trialDaysOf(), free: isFree(),
-        schools: db.schools.map(s => ({
-          ...s,
-          effectif: db.students.filter(x => x.schoolId === s.id).length,
-          classes: db.classes.filter(x => x.schoolId === s.id).length,
-          staff: db.staff.filter(x => x.schoolId === s.id).length
-        })),
-        staff: db.staff.map(s => ({ id: s.id, schoolId: s.schoolId, nom: s.nom, tel: s.tel, role: s.role })),
-        parents: db.parents.length,
-        students: db.students.length,
-        subActifs: db.parents.filter(p => subOf(p).active).length,
-        essais: db.parents.filter(p => subOf(p).trialDaysLeft > 0 && !subOf(p).until).length,
-        paymentsPending: db.payments.filter(x => x.status === 'pending'),
-        paymentsDone: db.payments.filter(x => x.status === 'validated').length,
-        recettes: db.payments.filter(x => x.status === 'validated').reduce((n, x) => n + (x.amount || 0), 0),
-        audit: db.audit.slice(-80).reverse()
-      });
-    }
-    if (p === '/api/admin/schools' && req.method === 'POST') {
-      const b = await readBody(req);
-      if (!String(b.nom || '').trim()) return sendJson(res, 400, { error: 'Nom de l\'école requis' });
-      const s = { id: uid('SC'), nom: String(b.nom).trim().slice(0, 80), createdAt: nowISO() };
-      db.schools.push(s); saveDb();
-      auditLog('ecole_creee', { nom: s.nom });
-      return sendJson(res, 201, { ok: true, id: s.id });
-    }
-    if (p === '/api/admin/staff' && req.method === 'POST') {
-      const b = await readBody(req);
-      const s = db.schools.find(x => x.id === b.schoolId);
-      if (!s) return sendJson(res, 404, { error: 'École introuvable' });
-      const tel = String(b.tel || '').replace(/\D/g, '');
-      if (tel.length < 8 || String(b.nom || '').trim().length < 2) return sendJson(res, 400, { error: 'Nom + téléphone requis' });
-      if (db.staff.find(x => x.tel === tel)) return sendJson(res, 409, { error: 'Ce numéro existe déjà' });
-      let pw = String(b.password || ''), gen = false;
-      if (!pw) { pw = 'Lien-' + Math.floor(1000 + Math.random() * 9000) + '!'; gen = true; }
-      const salt = crypto.randomBytes(12).toString('hex');
-      const st = { id: uid('ST'), schoolId: s.id, nom: String(b.nom).trim(), tel, role: ['directeur', 'surveillant', 'professeur'].includes(b.role) ? b.role : 'directeur', salt, passHash: hashPassword(salt, pw), createdAt: nowISO() };
-      db.staff.push(st); saveDb();
-      auditLog('staff_cree', { nom: st.nom, ecole: s.nom, role: st.role });
-      return sendJson(res, 201, { ok: true, id: st.id, nom: st.nom, tel, password: pw, passwordGenere: gen, school: s.nom });
-    }
-    if (p === '/api/admin/parents' && req.method === 'GET') {
-      return sendJson(res, 200, db.parents.map(p2 => ({
-        id: p2.id, nom: p2.nom, tel: p2.tel, blocked: !!p2.blocked,
-        createdAt: p2.createdAt, enfants: childrenOf(p2).map(s => s.prenom + ' ' + s.nom),
-        sub: subOf(p2)
-      })));
-    }
-    if (p === '/api/admin/parents/block' && req.method === 'POST') {
-      const b = await readBody(req);
-      const par = db.parents.find(x => x.id === b.id);
-      if (!par) return sendJson(res, 404, { error: 'Compte introuvable' });
-      par.blocked = true; saveDb();
-      auditLog('parent_bloque', { parent: par.nom, motif: String(b.motif || 'incivilité').slice(0, 120) });
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/admin/parents/unblock' && req.method === 'POST') {
-      const b = await readBody(req);
-      const par = db.parents.find(x => x.id === b.id);
-      if (!par) return sendJson(res, 404, { error: 'Compte introuvable' });
-      par.blocked = false; saveDb();
-      auditLog('parent_debloque', { parent: par.nom });
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/admin/parents/delete' && req.method === 'POST') {
-      const b = await readBody(req);
-      const par = db.parents.find(x => x.id === b.id);
-      if (!par) return sendJson(res, 404, { error: 'Compte introuvable' });
-      const nom = par.nom;
-      db.parents = db.parents.filter(x => x.id !== par.id);
-      db.notifications = db.notifications.filter(n => n.parentId !== par.id);
-      db.payments = db.payments.filter(x => x.parentId !== par.id);
-      saveDb();
-      auditLog('parent_supprime', { parent: nom });
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/admin/payments/validate' && req.method === 'POST') {
-      const b = await readBody(req);
-      const x = db.payments.find(z => z.id === b.id);
-      if (!x) return sendJson(res, 404, { error: 'Paiement introuvable' });
-      x.status = 'validated'; x.validatedAt = nowISO();
-      const par = db.parents.find(p => p.id === x.parentId);
-      if (par) {
-        const base = Math.max(Date.now(), par.subUntil || 0);
-        par.subUntil = base + SUB_DAYS * 86400000;
-        saveDb();
-        await notifyParent(par, '🎉', 'Abonnement actif pour 1 an !',
-          'Merci ' + par.nom.split(' ')[0] + ' ! Votre famille est abonnée jusqu\'au ' + frDate(new Date(par.subUntil).toISOString().slice(0, 10)) + '. Bon suivi de vos enfants 🧡');
-        auditLog('abonnement_valide', { parent: par.nom, montant: x.amount });
-      }
-      return sendJson(res, 200, { ok: true });
-    }
-    if (p === '/api/admin/payments/reject' && req.method === 'POST') {
-      const b = await readBody(req);
-      const x = db.payments.find(z => z.id === b.id);
-      if (!x) return sendJson(res, 404, { error: 'Paiement introuvable' });
-      x.status = 'rejected'; saveDb();
-      const par = db.parents.find(p => p.id === x.parentId);
-      if (par) await notifyParent(par, '⚠️', 'Paiement non reconnu', 'La référence ' + x.ref + ' n\'a pas été retrouvée. Contactez la plateforme ou réessayez — aucun montant n\'est perdu si la transaction a bien eu lieu.');
-      return sendJson(res, 200, { ok: true });
-    }
-  }
-
-  return sendJson(res, 404, { error: 'Route inconnue' });
 }
-
-/* ───────── Utilitaires métier ───────── */
-function todayStatus(studentId) {
-  const d = db.attendance.find(x => x.date === today() && (x.rows || []).some(r => r.studentId === studentId));
-  if (!d) return null;
-  const r = d.rows.find(x => x.studentId === studentId);
-  return r ? r.status : null;
-}
-function todayRows(schoolId) {
-  const cls = db.classes.filter(c => c.schoolId === schoolId);
-  let presents = 0, absents = 0, retards = 0, nonPointes = 0;
-  for (const c of cls) {
-    const d = db.attendance.find(x => x.classId === c.id && x.date === today());
-    if (!d) { nonPointes += db.students.filter(s => s.classId === c.id).length; continue; }
-    for (const r of d.rows) { if (r.status === 'present') presents++; else if (r.status === 'absent') absents++; else if (r.status === 'retard') retards++; }
+function saveDbNow() {
+  const snap = JSON.stringify(db, null, 1);
+  try { fs.writeFileSync(DB_FILE + '.tmp', snap); fs.renameSync(DB_FILE + '.tmp', DB_FILE); } catch (e) {}
+  if (pgClient) {
+    pgClient.query('UPDATE klean_state SET data=$1, updated=now() WHERE id=1', [JSON.parse(snap)])
+      .catch(e => console.log('  ⚠️  sauvegarde Postgres : ' + e.message));
   }
-  return { presents, absents, retards, nonPointes };
 }
-function stats7(schoolId) {
-  const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    let tot = 0, ab = 0;
-    for (const d of db.attendance.filter(x => x.schoolId === schoolId && x.date === day))
-      for (const r of d.rows) { tot++; if (r.status === 'absent') ab++; }
-    days.push({ date: day.slice(5), taux: tot ? Math.round(ab / tot * 100) : null });
-  }
-  return days;
+let saveTimer = null;
+function saveDb() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveDbNow, 150);
 }
-function announceStats(a) {
-  const cible = targetParents(a).length;
-  const reads = db.parents.filter(p => p.read && p.read[a.id]).length;
-  const acks = db.parents.filter(p => p.ack && p.ack[a.id]).length;
-  const oui = db.parents.filter(p => p.rsvp && p.rsvp[a.id] && p.rsvp[a.id].resp === 'oui').length;
-  const non = db.parents.filter(p => p.rsvp && p.rsvp[a.id] && p.rsvp[a.id].resp === 'non').length;
-  return { cible, reads, acks, oui, non };
-}
-function childNameOf(studentId) { const s = db.students.find(x => x.id === studentId); return s ? s.prenom + ' ' + s.nom : 'l\'élève'; }
-function frDate(iso) { try { return new Date(iso.length === 10 ? iso + 'T12:00:00Z' : iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Africa/Abidjan' }); } catch (e) { return iso; } }
+const uid = p => p + '-' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(2).toString('hex').toUpperCase();
+const nowISO = () => new Date().toISOString();
 
-/* ───────── Fichiers statiques ───────── */
-function serveStatic(req, res, p) {
-  let file;
-  if (p === '/' || p === '/index.html') file = 'index.html';
-  else if (p === '/admin' || p === '/admin.html') file = 'admin.html';
-  else if (p === '/admin-login.html') file = 'admin-login.html';
-  else if (p === '/sw.js') file = 'sw.js';
-  else if (p === '/manifest.json') file = 'manifest.json';
-  else if (p === '/manifest-admin.json') file = 'manifest-admin.json';
-  else if (p === '/ecole-link-icon-192.png') file = 'ecole-link-icon-192.png';
-  else if (p === '/ecole-link-icon-512.png') file = 'ecole-link-icon-512.png';
-  else if (p === '/logo-ecole-link.png' || p === '/favicon.ico') file = 'ecole-link-icon-512.png';
-  if (!file) return false;
-  const fp = path.join(__dirname, file);
-  fs.readFile(fp, (err, data) => {
-    if (err) { res.writeHead(404); res.end('404'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': file === 'index.html' || file === 'admin.html' ? 'no-cache' : 'public, max-age=3600' });
-    res.end(data);
-  });
-  return true;
-}
-
-/* ───────── WebSocket léger (handshake maison) ───────── */
-const sockets = new Set();
+/* ───────── WebSocket minimal (RFC 6455) ───────── */
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+const sockets = new Set();           // tous les sockets connectés
+const supRateMap = new Map();      // 🛡️ digestif anti-spam du support
 function wsSend(sock, obj) {
   if (sock.destroyed) return;
   const data = Buffer.from(JSON.stringify(obj));
   const len = data.length;
   let header;
-  if (len < 126) header = Buffer.from([0x81, len]);
+  if (len < 126) { header = Buffer.from([0x81, len]); }
   else if (len < 65536) { header = Buffer.alloc(4); header[0] = 0x81; header[1] = 126; header.writeUInt16BE(len, 2); }
   else { header = Buffer.alloc(10); header[0] = 0x81; header[1] = 127; header.writeBigUInt64BE(BigInt(len), 2); }
   try { sock.write(Buffer.concat([header, data])); } catch (e) {}
@@ -770,67 +188,1224 @@ function handleWsData(sock) {
       if (masked) { const m = buf.slice(maskOff, maskOff + 4); payload = Buffer.from(payload.map((b, i) => b ^ m[i % 4])); }
       buf = buf.slice(off + len);
       if (opcode === 0x8) { sock.end(); return; }
-      if (opcode === 0x9) { try { sock.write(Buffer.from([0x8a, 0])); } catch (e) {} continue; }
-      if (opcode === 0x1) {
-        try {
-          const msg = JSON.parse(payload.toString('utf8'));
-          if (msg && msg.type === 'ping') wsSend(sock, { type: 'pong', at: Date.now() });
-        } catch (e) {}
-      }
+      if (opcode === 0x9) { const pong = Buffer.from([0x8a, 0]); try { sock.write(pong); } catch (e) {} continue; }
+      if (opcode === 0x1) { try { routeWsMessage(sock, JSON.parse(payload.toString('utf8'))); } catch (e) {} }
     }
   };
 }
-function upgradeWs(req, sock) {
-  const key = req.headers['sec-websocket-key'];
-  if (!key) return sock.destroy();
-  const accept = crypto.createHash('sha1').update(key + WS_GUID).digest('base64');
-  sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
-  const url = new URL(req.url, 'http://x');
-  sock.meta = {};
-  const pTok = url.searchParams.get('parent');
-  if (pTok) {
-    const par = db.parents.find(x => parentToken(x.passHash) === pTok && !x.blocked);
-    if (par) sock.meta = { role: 'parent', parentId: par.id };
+
+/* ───────── Annuaires temps réel ───────── */
+// sock.meta = {role:'agent'|'client', agentId?, deviceId?, missions:Set}
+/* 🔔 VAPID : identité du serveur pour les notifications web (auto-générée 1×, gardée en base) */
+function vapidKeys() {
+  if (!webpush) return null;
+  db.settings = db.settings || {};
+  if (!db.settings.vapid) {
+    const ecdh = crypto.createECDH('prime256v1'); ecdh.generateKeys();
+    db.settings.vapid = {
+      publicKey: ecdh.getPublicKey(null, 'uncompressed').toString('base64url'),
+      privateKey: ecdh.getPrivateKey().toString('base64url')
+    };
+    saveDb(); console.log('🔑 Clés VAPID générées (persistance base)');
   }
-  const sid = /(?:^|;\s*)elsid=([0-9a-f]+)/.exec(req.headers.cookie || '');
-  if (sid && sessions.has(sid[1])) {
-    const sn = sessions.get(sid[1]);
-    if (sn.role === 'boss') sock.meta = { role: 'boss' };
-    else if (sn.role === 'staff') { const st = staffOf(sn); if (st) sock.meta = { role: 'staff', schoolId: st.schoolId }; }
+  try { webpush.setVapidDetails('mailto:contact@klean.ci', db.settings.vapid.publicKey, db.settings.vapid.privateKey); }
+  catch (e) { console.log('⚠️ VAPID invalide :', e.message); return null; }
+  return db.settings.vapid;
+}
+/* Envoie la notification « poche » à tous les agents validés ayant activé les alertes.
+   Le web push arrive MÊME application fermée / écran éteint (Android) — c'est là sa force. */
+async function pushNewMissionToAgents(m, svcNom) {
+  if (!webpush || !vapidKeys()) return;
+  const payload = JSON.stringify({ title: '🔔 Nouvelle demande KLEAN', body: svcNom + ' · ' + (m.quartier || '') + ' · ' + (m.prixTotal || 0).toLocaleString('fr-FR') + ' F — touchez pour accepter', url: '/?mode=agent', missionId: m.id });
+  const targets = db.agents.filter(ag => (ag.status || 'approved') === 'approved' && !ag.blocked && Array.isArray(ag.pushSubs) && ag.pushSubs.length);
+  let dirty = false;
+  for (const ag of targets) {
+    for (const sub of [...ag.pushSubs]) {
+      try { await webpush.sendNotification(sub, payload, { TTL: 120, urgency: 'high' }); }
+      catch (e) { const c = e && (e.statusCode || e.status); if (c === 404 || c === 410) { ag.pushSubs = ag.pushSubs.filter(s => s.endpoint !== sub.endpoint); dirty = true; } }
+    }
   }
-  sockets.add(sock);
-  sock.on('data', handleWsData(sock));
-  sock.on('close', () => sockets.delete(sock));
-  sock.on('error', () => sockets.delete(sock));
+  if (targets.length) console.log('📲 Notification poche envoyée à ' + targets.length + ' agent(s) abonné(s)');
+  if (dirty) saveDb();
 }
 
-/* ───────── Serveur ───────── */
+function onlineAgents() { return [...sockets].filter(s => s.meta && s.meta.role === 'agent' && s.meta.online); }
+function subsOf(missionId) { return [...sockets].filter(s => s.meta && s.meta.missions && s.meta.missions.has(missionId)); }
+function adminSockets() { return [...sockets].filter(s => s.meta && s.meta.role === 'admin'); }
+/* Envoie un événement au(x) tableau(x) de bord HQ en temps réel */
+function emitAdmin(kind, text) { broadcast(adminSockets(), { type: 'admin_event', kind, text, at: nowISO() }); }
+
+function routeWsMessage(sock, msg) {
+  sock.meta = sock.meta || { missions: new Set() };
+  switch (msg.type) {
+    case 'hello':
+      sock.meta.role = msg.role === 'agent' ? 'agent' : (msg.role === 'admin' && sock.meta.hqAuthed ? 'admin' : 'client');
+      sock.meta.deviceId = msg.deviceId || null;
+      break;
+    case 'ping': break;
+    case 'agent_online': {
+      const ag = db.agents.find(a => a.id === (sock.meta.agentId || msg.agentId));
+      if (!ag) { wsSend(sock, { type: 'agent_denied', reason: 'apply' }); break; }
+      if (ag.status === 'pending') { wsSend(sock, { type: 'agent_pending' }); break; }
+      if (ag.blocked) { wsSend(sock, { type: 'agent_denied', reason: 'blocked' }); break; }
+      if (ag.status === 'rejected') { wsSend(sock, { type: 'agent_denied', reason: 'rejected' }); break; }
+      ag.nom = msg.nom || ag.nom; ag.quartier = msg.quartier || ag.quartier; ag.tel = msg.tel || ag.tel;
+      ag.online = true; ag.lastSeen = nowISO();
+      sock.meta.role = 'agent'; sock.meta.online = true; sock.meta.agentId = ag.id;
+      saveDb();
+      wsSend(sock, { type: 'agent_registered', agentId: ag.id });
+      console.log(`🟢 Agent en ligne : ${ag.nom} (${ag.quartier}) — ${onlineAgents().length} en ligne`);
+      emitAdmin('agent', `🟢 ${ag.nom} en ligne (${ag.quartier}) — ${onlineAgents().length} agent(s) en ligne`);
+      break;
+    }
+    case 'agent_offline': {
+      const ag = db.agents.find(a => a.id === (sock.meta.agentId || msg.agentId));
+      if (ag) { ag.online = false; saveDb(); emitAdmin('agent', `⚪ ${ag.nom} est hors ligne`); }
+      sock.meta.online = false;
+      console.log('⚪ Agent hors ligne');
+      break;
+    }
+    case 'subscribe_mission':
+      sock.meta.missions.add(msg.missionId);
+      break;
+    case 'agent_pos': {   // 📡 position GPS envoyée périodiquement par l'agent
+      const ag = db.agents.find(a => a.id === (sock.meta.agentId || msg.agentId));
+      if (ag && typeof msg.lat === 'number' && typeof msg.lng === 'number') {
+        ag.pos = { lat: msg.lat, lng: msg.lng, at: nowISO() };
+      }
+      break;
+    }
+  }
+}
+
+/* ───────── Missions : diffusion & notifications ───────── */
+function publicMissionForAgent(m) {
+  // on ne diffuse PAS le téléphone du client avant acceptation
+  const { tel, ...clientSafe } = m.client;
+  return {
+    id: m.id, service: m.service, pieces: m.pieces, depth: m.depth,
+    quartier: m.quartier, time: m.time, date: m.date,
+    dist: m.dist, prixTotal: m.prixTotal,
+    lat: m.lat, lng: m.lng,               // 📍 position GPS du client (pour l'agent)
+    clientNom: m.client.nom,
+    desc: m.desc || '',                   // 📝 description/matière précisée par le client
+    photos: Array.isArray(m.photos) ? m.photos : [],
+    budget: m.budget || 0
+  };
+}
+function emitToMission(m, obj) {
+  const list = subsOf(m.id);
+  // inclure le socket de l'agent assigné
+  if (m.agentId) { const a = [...sockets].find(s => s.meta && s.meta.agentId === m.agentId); if (a && !list.includes(a)) list.push(a); }
+  broadcast(list, obj);
+}
+const SVC_NAMES = { maison:'Ménage maison', bureaux:'Bureaux', canapes:'Canapés & tapis', vitres:'Vitres', grand:'Grand ménage', plomberie:'Plomberie', electricite:'Électricité', clim:'Climatisation', serrurerie:'Serrurerie', electro:'Électroménager', jardinage:'Jardinage', lavageauto:'Lavage auto', bricolage:'Bricolage', demen:'Déménagement', cuisine:'Cuisinier à domicile', cours:'Cours ou formation à domicile', canal:'Canal+ à domicile', evenement:'Après événement', entretien:'Entretien régulier', placement:'Placement de personnel', custom:'Demande sur mesure' };
+function haversineKm(aLat, aLng, bLat, bLng) {
+  const R = 6371, dLa = (bLat - aLat) * Math.PI / 180, dLo = (bLng - aLng) * Math.PI / 180;
+  const s = Math.sin(dLa / 2) ** 2 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLo / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+function missionTargets(m) {
+  /* 📡 PROS LES PLUS PROCHES (GPS) : la demande s'offre d'abord dans le rayon réglable (PDG, /api/config) */
+  const all = onlineAgents();
+  if (typeof m.lat !== 'number' || typeof m.lng !== 'number') return all;
+  const reach = (db.config && typeof db.config.reachKm === 'number') ? db.config.reachKm : 15;
+  const near = [];
+  for (const s of all) {
+    const ag = db.agents.find(a => a.id === (s.meta && s.meta.agentId));
+    const p = ag && ag.pos;
+    if (p && typeof p.lat === 'number') {
+      const d = haversineKm(m.lat, m.lng, p.lat, p.lng);
+      s._dist = Math.round(d * 10) / 10;
+      if (d <= reach) near.push(s);
+    } else { near.push(s); } /* sans GPS connu : on le garde */
+  }
+  const list = near.length ? near : all;
+  console.log('\u{1F4E1} GPS : ' + list.length + '/' + all.length + ' pro(s) en ligne dans le rayon ' + reach + ' km');
+  return list;
+}
+function broadcastNewMission(m) {
+  const exc = m.exclAg || [];
+  const base = publicMissionForAgent(m);
+  const targets = missionTargets(m);
+  let sent = 0;
+  for (const s of targets) {
+    if (exc.includes(s.meta && s.meta.agentId)) continue;
+    wsSend(s, { type: 'mission_request', mission: Object.assign({}, base, { dist: (typeof s._dist === 'number' ? s._dist : base.dist) }) });
+    sent++;
+  }
+  console.log('📢 Mission ' + m.id + ' (' + m.service + ' · ' + m.prixTotal + ' F) diffusée à ' + sent + ' agent(s)');
+  emitAdmin('mission', '📥 Nouvelle demande ' + m.id + ' — ' + m.service + ' · ' + m.quartier + ' · ' + m.prixTotal.toLocaleString('fr-FR') + ' F (' + m.client.nom + ')');
+  pushNewMissionToAgents(m, (SVC_NAMES[m.service] || m.service) || '').catch(()=>{});
+}
+
+function agentCompletion(ag) {
+  const F = ['photo', 'quartier', 'adresse', 'naissance', 'pieceType', 'pieceNum', 'urgenceNom', 'urgenceTel', 'ref1Nom', 'ref1Tel', 'niveau'];
+  let done = F.filter(f => ag[f] && String(ag[f]).trim()).length;
+  if (Array.isArray(ag.services) && ag.services.length) done++;
+  return Math.round(done / (F.length + 1) * 100);
+}
+
+/* ───────── API REST ───────── */
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.md': 'text/plain; charset=utf-8', '.ico': 'image/x-icon' };
+function sendJson(res, code, obj) {
+  const b = JSON.stringify(obj);
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+  res.end(b);
+}
+function readBody(req) {
+  return new Promise(r => {
+    let d = '';
+    req.on('data', c => { d += c; if (d.length > 8e6) req.destroy(); });
+    req.on('end', () => { try { r(JSON.parse(d || '{}')); } catch (e) { r({}); } });
+  });
+}
+function agentStats(ag) {
+  const done = db.missions.filter(x => x.agentId === ag.id && x.status === 'terminee');
+  const gain = done.reduce((s, x) => s + Math.round(x.prixTotal * (1 - feePct())), 0);
+  const comm = done.reduce((s, x) => s + Math.round(x.prixTotal * feePct()), 0);
+  const notes = done.filter(x => x.note).map(x => x.note);
+  return {
+    missionsDone: done.length, gain, comm,
+    rating: notes.length ? notes.reduce((s, n) => s + n, 0) / notes.length : 5.0,
+    hist: done.slice(-30).reverse().map(x => ({ id: x.id, service: x.service, quartier: x.quartier, date: x.finishedAt && x.finishedAt.slice(5, 10), montant: x.prixTotal, gain: Math.round(x.prixTotal * (1 - feePct())), comm: Math.round(x.prixTotal * feePct()), note: x.note || 5 }))
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
-  try {
-    if (p.startsWith('/api/')) return await handleApi(req, res, p, url);
-    if (serveStatic(req, res, p)) return;
-    res.writeHead(404); res.end('404');
-  } catch (e) {
-    console.log('⚠️', e.message);
-    try { sendJson(res, 500, { error: 'Erreur interne' }); } catch (e2) {}
+
+  /* --- API --- */
+  if (p === '/api/health') return sendJson(res, 200, { ok: true, storage: pgClient ? 'postgres' : 'fichier', agentsEnLigne: onlineAgents().length, agentsTotal: db.agents.length, clientsTotal: db.clients.length, missions: db.missions.length });
+
+  if (p === '/api/missions' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (!b.nom || !b.service) return sendJson(res, 400, { error: 'données manquantes' });
+    const m = {
+      id: uid('KN'), service: b.service, pieces: b.pieces || 2, depth: b.depth || 'normal',
+      extras: b.extras || {}, prixTotal: Math.round(b.prixTotal || 0), promo: b.promo || '',
+      date: b.date || '', time: b.time || '', quartier: b.quartier || '', adresse: b.adresse || '',
+      paiement: b.paiement || 'cash',
+      desc: (typeof b.desc === 'string' ? b.desc : '').slice(0, 280),
+      photos: Array.isArray(b.photos) ? b.photos.filter(x => typeof x === 'string' && x.length < 600000).slice(0, 3) : [],
+      budget: Math.max(0, parseInt(b.budget) || 0),
+      lat: typeof b.lat === 'number' ? b.lat : null,
+      lng: typeof b.lng === 'number' ? b.lng : null,
+      client: { nom: b.nom, tel: b.tel || '', deviceId: b.deviceId || '' },
+      dist: Math.round((0.5 + Math.random() * 3.5) * 10) / 10,
+      status: 'pending', agentId: null, createdAt: nowISO(), finishedAt: null, note: 0
+    };
+    const cli = findClientByToken(req);   // 👤 mission rattachée au compte client
+    if (!cli) return sendJson(res, 401, { error: 'Inscription requise : créez votre compte client gratuit pour réserver' });
+    if (cli.blocked) return sendJson(res, 403, { error: 'Compte bloqué par le gestionnaire — contactez le support' });
+    m.clientId = cli.id;
+    const actives = db.missions.filter(x => x.clientId === cli.id && !['terminee', 'annulee'].includes(x.status)).length;
+    if (actives >= 3) return sendJson(res, 409, { error: 'Maximum 3 missions actives en même temps' });
+    db.missions.push(m); saveDb();
+    broadcastNewMission(m);
+    return sendJson(res, 201, { id: m.id, dist: m.dist });
   }
+
+  const mAccept = p.match(/^\/api\/missions\/(.+)\/accept$/);
+  if (mAccept && req.method === 'POST') {
+    const { agentId } = await readBody(req);
+    const m = db.missions.find(x => x.id === mAccept[1]);
+    const ag = db.agents.find(a => a.id === agentId);
+    if (!m) return sendJson(res, 404, { error: 'mission introuvable' });
+    if (!ag) return sendJson(res, 404, { error: 'agent inconnu' });
+    if (m.status !== 'pending') return sendJson(res, 409, { error: 'déjà prise', status: m.status });
+    if ((m.exclAg || []).includes(ag.id)) return sendJson(res, 409, { error: 'Cette mission vous a été retirée — le gestionnaire l’a réattribuée' });
+    m.status = 'accepted'; m.agentId = ag.id; saveDb();
+    // informer les autres agents que la mission est prise
+    broadcast(onlineAgents().filter(s => s.meta.agentId !== ag.id), { type: 'mission_taken', missionId: m.id });
+    emitToMission(m, { type: 'mission_update', status: 'accepted', missionId: m.id,
+      agent: { nom: ag.nom, note: agentStats(ag).rating, missions: agentStats(ag).missionsDone, tel: ag.tel, photo: ag.photo || '' },
+      dist: m.dist, agentPos: ag.pos || null, lat: m.lat, lng: m.lng });
+    console.log(`✅ ${ag.nom} a accepté ${m.id}`);
+    emitAdmin('accept', `✅ ${ag.nom} a accepté la mission ${m.id} (${m.prixTotal.toLocaleString('fr-FR')} F)`);
+    return sendJson(res, 200, { ok: true, missionId: m.id, clientTel: m.client.tel });
+  }
+
+  const mStatus = p.match(/^\/api\/missions\/(.+)\/status$/);
+  if (mStatus && req.method === 'POST') {
+    const { agentId, status, note } = await readBody(req);
+    const m = db.missions.find(x => x.id === mStatus[1]);
+    if (!m || m.agentId !== agentId) return sendJson(res, 404, { error: 'mission introuvable' });
+    m.status = status;
+    if (status === 'terminee') { m.finishedAt = nowISO(); if (note) m.note = note; }
+    saveDb();
+    emitToMission(m, { type: 'mission_update', status, missionId: m.id });
+    console.log(`➡️  ${m.id} : ${status}`);
+    const LBL = { enroute: '🛵 en route', arrive: '📍 arrivé sur place', encours: '🧽 nettoyage en cours', terminee: `✅ terminée — +${Math.round(m.prixTotal * feePct()).toLocaleString('fr-FR')} F de commission` };
+    emitAdmin('status', `${LBL[status] || status} · ${m.id}`);
+    const ag = db.agents.find(a => a.id === agentId);
+    const st = agentStats(ag);
+    return sendJson(res, 200, { ok: true, gain: Math.round(m.prixTotal * (1 - feePct())), comm: Math.round(m.prixTotal * feePct()), stats: st });
+  }
+
+  const mCancel = p.match(/^\/api\/missions\/(.+)\/cancel$/);
+  if (mCancel && req.method === 'POST') {
+    const m = db.missions.find(x => x.id === mCancel[1]);
+    if (!m) return sendJson(res, 404, {});
+    if (['terminee', 'annulee'].includes(m.status)) return sendJson(res, 409, { error: 'trop tard' });
+    m.status = 'annulee'; saveDb();
+    emitToMission(m, { type: 'mission_update', status: 'annulee', missionId: m.id });
+    broadcast(onlineAgents(), { type: 'mission_taken', missionId: m.id });
+    emitAdmin('cancel', `✕ Mission ${m.id} annulée par le client`);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const mGet = p.match(/^\/api\/missions\/(.+)$/);
+  if (mGet && req.method === 'GET') {
+    const m = db.missions.find(x => x.id === mGet[1]);
+    if (!m) return sendJson(res, 404, {});
+    const ag = m.agentId ? db.agents.find(a => a.id === m.agentId) : null;
+    return sendJson(res, 200, { id: m.id, status: m.status, agentId: m.agentId,
+      lat: m.lat, lng: m.lng, agentPos: (ag && ag.pos) || null });
+  }
+
+  const aSum = p.match(/^\/api\/agents\/(.+)\/summary$/);
+  if (aSum && req.method === 'GET') {
+    const ag = db.agents.find(a => a.id === aSum[1]);
+    if (!ag) return sendJson(res, 404, {});
+    return sendJson(res, 200, { id: ag.id, nom: ag.nom, quartier: ag.quartier, online: ag.online, stats: agentStats(ag) });
+  }
+
+  /* --- AUTH HQ (mot de passe robuste) --- */
+  if (p === '/api/admin/status') return sendJson(res, 200, { setup: !!db.admin });
+
+  /* --- RECUPERATION TEMPORAIRE DU MOT DE PASSE PROPRIETAIRE ---
+     Double sécurité : (1) ne fait rien sauf si la variable ADMIN_RESET_CODE
+     existe sur Render ET que ?code= correspond EXACTEMENT ;
+     (2) à usage unique : le code est détruit en mémoire après utilisation. --- */
+  if (p === '/api/admin/reset') {
+    const code = url.searchParams.get('code') || '';
+    if (!process.env.ADMIN_RESET_CODE || code !== process.env.ADMIN_RESET_CODE || !db.admin) {
+      return sendJson(res, 403, { error: 'Réinitialisation non disponible' });
+    }
+    delete process.env.ADMIN_RESET_CODE; // usage unique
+    db.admin = null;
+    saveDbNow();
+    console.log('🔑 Mot de passe propriétaire réinitialisé (code usage unique)');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<body style="font-family:system-ui;background:#08120c;color:#e8f5ee;display:flex;align-items:center;justify-content:center;min-height:90vh;margin:0;text-align:center">'
+      + '<div><div style="font-size:56px">✅</div><h1 style="color:#4ade80;margin:8px 0">Mot de passe effacé</h1>'
+      + '<p style="max-width:340px;line-height:1.6">Ouvrez <a style="color:#22c55e;font-weight:700" href="/admin">votre page /admin</a> : elle vous proposera maintenant de <b>créer un nouveau mot de passe</b>. Faites-le tout de suite.</p></div></body>');
+  }
+
+  if (p === '/api/admin/setup' && req.method === 'POST') {
+    const { password } = await readBody(req);
+    if (db.admin) return sendJson(res, 409, { error: 'Le mot de passe est déjà créé' });
+    const perr = validPassword(password);
+    if (perr) return sendJson(res, 400, { error: perr });
+    const salt = crypto.randomBytes(12).toString('hex');
+    db.admin = { salt, passHash: hashPassword(salt, password) };
+    saveDb();
+    console.log('🔑 Mot de passe HQ créé');
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=' + adminToken() + '; Path=/; HttpOnly; SameSite=Lax; Secure' });
+    return res.end('{"ok":true}');
+  }
+
+  if (p === '/api/admin/login' && req.method === 'POST') {
+    const ip = req.socket.remoteAddress || '?';
+    const rec = loginTries.get(ip) || { n: 0, t: 0 };
+    if (rec.n >= 6 && Date.now() - rec.t < 600000) { auditLog('hq_login_bloque', { ip }); return sendJson(res, 429, { error: 'Trop de tentatives — réessayez dans 10 min' }); }
+    const b = await readBody(req);
+    const pw = b.password || b.pin || '';
+    const ident = normIdent(b.ident || '');
+    let who = null;
+    if (db.admin && !ident && hashPassword(db.admin.salt, pw) === db.admin.passHash) {
+      who = { t: adminToken(), qui: 'PDG', role: 'pdg', kind: 'hq_connexion' };
+    } else if (ident) {
+      const ad = (db.admins || []).find(a => normIdent(a.ident) === ident || normIdent(a.nom) === ident);
+      if (ad && !ad.blocked && hashPassword(ad.salt, pw) === ad.passHash) {
+        who = { t: gestTokenOf(ad), qui: ad.nom, role: 'gest', kind: 'gest_connexion', ad };
+      }
+    }
+    if (who) {
+      loginTries.delete(ip);
+      if (who.ad) { who.ad.lastLogin = nowISO(); saveDb(); }
+      auditLog(who.kind, { ip, qui: who.qui });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=' + who.t + '; Path=/; HttpOnly; SameSite=Lax; Secure' });
+      return res.end('{"ok":true,"role":"' + who.role + '"}');
+    }
+    loginTries.set(ip, { n: rec.n + 1, t: rec.t || Date.now() });
+    auditLog('hq_login_echec', { ip });
+    return sendJson(res, 401, { error: 'Mot de passe incorrect' });
+  }
+
+  if (p === '/api/admin/password' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    if (!isAdminReq(req)) return sendJson(res, 401, { error: 'non autorisé' });
+    const { current, next } = await readBody(req);
+    if (!db.admin || hashPassword(db.admin.salt, current || '') !== db.admin.passHash)
+      return sendJson(res, 401, { error: 'Mot de passe actuel incorrect' });
+    const perr2 = validPassword(next);
+    if (perr2) return sendJson(res, 400, { error: perr2 });
+    const salt = crypto.randomBytes(12).toString('hex');
+    db.admin = { salt, passHash: hashPassword(salt, next) };   // nouveau hash → nouvelles sessions, anciennes invalidées
+    saveDb();
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=' + adminToken() + '; Path=/; HttpOnly; SameSite=Lax; Secure' });
+    return res.end('{"ok":true}');
+  }
+  if (p === '/api/admin/logout') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'klean_hq=; Path=/; Max-Age=0' });
+    return res.end('{"ok":true}');
+  }
+  if (p.startsWith('/api/admin') && !isAdminReq(req)) return sendJson(res, 401, { error: 'non autorisé' });
+
+  /* --- API CLIENTS (comptes sécurisés) --- */
+  if (p === '/api/clients/register' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (!b.nom || b.nom.trim().length < 2) return sendJson(res, 400, { error: 'Indiquez votre nom complet' });
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    if (tel.length < 8) return sendJson(res, 400, { error: 'Numéro de téléphone invalide' });
+    const perr = validPassword(b.password);
+    if (perr) return sendJson(res, 400, { error: perr });
+    if (db.clients.find(cl => cl.tel === tel)) return sendJson(res, 409, { error: 'Ce numéro a déjà un compte — connectez-vous' });
+    const salt = crypto.randomBytes(12).toString('hex');
+    const cl = { id: uid('CL'), nom: b.nom.trim(), tel, quartier: String(b.quartier || '').slice(0, 60), ville: String(b.ville || '').slice(0, 60), mail: String(b.mail || '').slice(0, 80), salt, passHash: hashPassword(salt, b.password), createdAt: nowISO() };
+    db.clients.push(cl); saveDb();
+    console.log(`👤 Nouveau compte client : ${cl.nom} (${tel})`);
+    return sendJson(res, 201, { ok: true, clientId: cl.id, token: clientToken(cl.passHash), nom: cl.nom });
+  }
+
+  if (p === '/api/clients/login' && req.method === 'POST') {
+    const b = await readBody(req);
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    const cl = db.clients.find(x => x.tel === tel);
+    if (!cl || hashPassword(cl.salt, b.password || '') !== cl.passHash)
+      return sendJson(res, 401, { error: 'Téléphone ou mot de passe incorrect' });
+    if (cl.blocked) return sendJson(res, 403, { error: 'Compte bloqué par le gestionnaire — contactez le support' });
+    return sendJson(res, 200, { ok: true, clientId: cl.id, token: clientToken(cl.passHash), nom: cl.nom, quartier: cl.quartier, ville: cl.ville || '', mail: cl.mail || '', photo: cl.photo || '' });
+  }
+
+  /* ✏️ Compléter sa fiche (quartier, nom) — PUT /api/clients/me (jeton) */
+  if (p === '/api/clients/me' && req.method === 'PUT') {
+    const b = await readBody(req);
+    const cli = findClientByToken(req);
+    if (!cli) return sendJson(res, 401, {});
+    if (b.nom !== undefined && String(b.nom).trim().length >= 2) cli.nom = String(b.nom).trim().slice(0, 80);
+    if (b.quartier !== undefined) cli.quartier = String(b.quartier).slice(0, 60);
+    if (b.ville !== undefined) cli.ville = String(b.ville).slice(0, 60);
+    if (b.mail !== undefined) cli.mail = String(b.mail).slice(0, 80);
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* 📷 Photo de profil client — PUT /api/clients/me/photo */
+  if (p === '/api/clients/me/photo' && req.method === 'PUT') {
+    const b = await readBody(req);
+    const cl = db.clients.find(x => x.id === b.clientId);
+    if (!cl || findClientByToken(req) !== cl) return sendJson(res, 401, { error: 'Session invalide' });
+    if (typeof b.photo !== 'string' || b.photo.length > 600000) return sendJson(res, 400, { error: 'Photo trop lourde' });
+    cl.photo = b.photo; saveDb();
+    console.log('📷 Photo de profil mise à jour : ' + cl.nom);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/clients/password' && req.method === 'POST') {
+    const b = await readBody(req);
+    const headers = { ...req.headers, 'x-client-token': req.headers['x-client-token'] };
+    const cl = db.clients.find(x => x.id === b.clientId);
+    if (!cl || findClientByToken({ headers }) !== cl) return sendJson(res, 401, { error: 'Session invalide' });
+    if (hashPassword(cl.salt, b.current || '') !== cl.passHash) return sendJson(res, 401, { error: 'Mot de passe actuel incorrect' });
+    const perr = validPassword(b.next);
+    if (perr) return sendJson(res, 400, { error: perr });
+    const salt = crypto.randomBytes(12).toString('hex');
+    cl.salt = salt; cl.passHash = hashPassword(salt, b.next); saveDb();
+    return sendJson(res, 200, { ok: true, token: clientToken(cl.passHash) });
+  }
+
+  const cMis = p.match(/^\/api\/clients\/(.+)\/missions$/);
+  if (cMis && req.method === 'GET') {
+    const cl = findClientByToken(req);
+    if (!cl || cl.id !== cMis[1]) return sendJson(res, 401, {});
+    return sendJson(res, 200, db.missions.filter(m => m.clientId === cl.id).slice(-30).reverse()
+      .map(m => ({ id: m.id, service: m.service, quartier: m.quartier, time: m.time, date: m.date, status: m.status, prixTotal: m.prixTotal, note: m.note, at: m.createdAt })));
+  }
+
+  /* --- DOSSIERS AGENTS (candidature vérifiée par le propriétaire) --- */
+  if (p === '/api/agents/apply' && req.method === 'POST') {
+    const b = await readBody(req);
+    const need = ['nom', 'prenom', 'naissance', 'tel1', 'quartier', 'adresse', 'pieceType', 'pieceNum', 'urgenceNom', 'urgenceTel', 'ref1Nom', 'ref1Tel'];
+    for (const k of need) if (!b[k] || String(b[k]).trim() === '') return sendJson(res, 400, { error: 'Champ manquant : ' + k });
+    if (Array.isArray(b.services) && b.services.includes('cours') && !(b.niveau && String(b.niveau).trim())) return sendJson(res, 400, { error: 'Niveau d\'étude requis pour les Cours ou formation à domicile' });
+    const tel1 = String(b.tel1).replace(/\D/g, '');
+    if (tel1.length < 8) return sendJson(res, 400, { error: 'Téléphone principal invalide' });
+    let ag = db.agents.find(a => a.tel === tel1 && a.status !== 'rejected' && a.status !== 'moreinfo');
+    if (ag) return sendJson(res, 409, { error: 'Un dossier existe déjà pour ce numéro', agentId: ag.id, status: ag.status });
+    const reApply = db.agents.find(a => a.tel === tel1 && a.status === 'moreinfo');
+    ag = {
+      id: uid('AG'), createdAt: nowISO(), status: 'pending',
+      // identité
+      nom: (b.prenom.trim() + ' ' + b.nom.trim()).trim(), nomFamille: b.nom.trim(), prenom: b.prenom.trim(),
+      naissance: b.naissance, tel: tel1, tel1, tel2: String(b.tel2 || '').replace(/\D/g, ''),
+      quartier: b.quartier, adresse: b.adresse,
+      ville: String(b.ville || '').slice(0, 60), mail: String(b.mail || '').slice(0, 80),
+      pieceType: b.pieceType, pieceNum: b.pieceNum,
+      piecePhoto: typeof b.piecePhoto === 'string' && b.piecePhoto.length < 900000 ? b.piecePhoto : '',
+      urgenceNom: b.urgenceNom.trim(), urgenceTel: String(b.urgenceTel).replace(/\D/g, ''),
+      experience: Math.min(30, Math.max(0, parseInt(b.experience) || 0)),
+      niveau: String(b.niveau || '').trim().slice(0, 60),
+      ref1Nom: b.ref1Nom.trim(), ref1Tel: String(b.ref1Tel).replace(/\D/g, ''),
+      ref2Nom: String(b.ref2Nom || '').trim(), ref2Tel: String(b.ref2Tel || '').replace(/\D/g, ''),
+      photo: typeof b.photo === 'string' ? b.photo.slice(0, 600000) : '',
+      services: Array.isArray(b.services) ? b.services.slice(0, 10) : [],
+      subs: (b.subs && typeof b.subs === 'object' && !Array.isArray(b.subs)) ? Object.fromEntries(Object.entries(b.subs).slice(0, 10).map(([k, ar]) => [String(k).slice(0, 20), (Array.isArray(ar) ? ar : []).slice(0, 12).map(x => String(x).slice(0, 24))])) : {},
+      subsNoms: (b.subsNoms && typeof b.subsNoms === 'object' && !Array.isArray(b.subsNoms)) ? Object.fromEntries(Object.entries(b.subsNoms).slice(0, 10).map(([k, ar]) => [String(k).slice(0, 20), (Array.isArray(ar) ? ar : []).slice(0, 12).map(x => String(x).slice(0, 80))])) : {},
+      online: false
+    };
+    ag.history = [{ at: nowISO(), by: 'agent', action: 'dossier envoye' }];
+    if (reApply) {
+      ag.history = (reApply.history || []).concat([{ at: nowISO(), by: 'agent', action: 'dossier renvoye apres infos demandees' }]);
+      db.agents = db.agents.filter(a => a.id !== reApply.id);
+      auditLog('agent_recandidature', { agent: ag.nom, tel: tel1 });
+    }
+    db.agents.push(ag); saveDb();
+    emitAdmin('cand', `📋 Nouvelle candidature professionnel : ${ag.nom} (${ag.quartier}) — dossier à vérifier`);
+    console.log(`📋 Candidature agent : ${ag.nom} — ${ag.pieceType} ${ag.pieceNum}`);
+    return sendJson(res, 201, { ok: true, agentId: ag.id, status: 'pending' });
+  }
+
+  /* 📊 Niveau de remplissage du profil pro : 100 % = il inspire confiance */
+  const aStatus = p.match(/^\/api\/agents\/(.+)\/status$/);
+  if (aStatus && req.method === 'GET') {
+    const ag = db.agents.find(a => a.id === aStatus[1]);
+    if (!ag) return sendJson(res, 404, {});
+    return sendJson(res, 200, { id: ag.id, nom: ag.nom, status: ag.status || 'approved', rejectReason: ag.rejectReason || '', blocked: !!ag.blocked,
+      completion: agentCompletion(ag), quartier: ag.quartier || '', tel: ag.tel1 || '', photo: ag.photo || '' });
+  }
+
+  if (p.match(/^\/api\/agents\/(.+)\/profile$/) && req.method === 'PUT') {
+    const b = await readBody(req);
+    const id = p.match(/^\/api\/agents\/(.+)\/profile$/)[1];
+    const ag = db.agents.find(a => a.id === id);
+    if (!ag || (ag.status || 'approved') !== 'approved') return sendJson(res, 404, { error: 'compte introuvable' });
+    const W = ['quartier', 'adresse', 'naissance', 'pieceType', 'pieceNum', 'urgenceNom', 'urgenceTel', 'ref1Nom', 'ref1Tel', 'niveau', 'tel2', 'experience'];
+    let touched = 0;
+    for (const f of W) {
+      if (b[f] !== undefined && String(b[f]).trim() !== String(ag[f] || '')) { ag[f] = String(b[f]).slice(0, 160); touched++; }
+    }
+    if (typeof b.photo === 'string' && b.photo.length > 100 && b.photo.length < 600000) { ag.photo = b.photo; touched++; }
+    const comp = agentCompletion(ag); saveDb();
+    auditLog('pro_profil_maj', { pro: ag.nom, champs: touched, completion: comp });
+    return sendJson(res, 200, { ok: true, completion: comp });
+  }
+
+  /* --- 🔔 Web Push : sonnerie agents même app fermée --- */
+  if (p === '/api/push/key' && req.method === 'GET') {
+    const k = vapidKeys();
+    if (!k) return sendJson(res, 503, { error: 'push indisponible' });
+    return sendJson(res, 200, { publicKey: k.publicKey });
+  }
+  if (p === '/api/push/subscribe' && req.method === 'POST') {
+    const b = await readBody(req);
+    const ag = db.agents.find(a => a.id === b.agentId);
+    if (!ag) return sendJson(res, 404, { error: 'agent introuvable' });
+    const sub = b.sub;
+    if (!sub || typeof sub.endpoint !== 'string' || !sub.endpoint.startsWith('https://') || !sub.keys || typeof sub.keys.p256dh !== 'string' || typeof sub.keys.auth !== 'string') return sendJson(res, 400, { error: 'abonnement invalide' });
+    ag.pushSubs = (ag.pushSubs || []).filter(s => s.endpoint !== sub.endpoint);
+    ag.pushSubs.push({ endpoint: sub.endpoint.slice(0, 500), keys: { p256dh: String(sub.keys.p256dh).slice(0, 200), auth: String(sub.keys.auth).slice(0, 60) } });
+    ag.pushSubs = ag.pushSubs.slice(-3);
+    saveDb();
+    console.log('🔔 ' + ag.nom + ' a activé la sonnerie poche');
+    return sendJson(res, 201, { ok: true });
+  }
+  if (p === '/api/push/unsubscribe' && req.method === 'POST') {
+    const b = await readBody(req);
+    const ag = db.agents.find(a => a.id === b.agentId);
+    if (!ag) return sendJson(res, 404, {});
+    ag.pushSubs = (ag.pushSubs || []).filter(s => s.endpoint !== (b.endpoint || ''));
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* --- API ADMIN (HQ) --- */
+  if (p === '/api/admin/overview') {
+    const MS = db.missions;
+    const todayK = nowISO().slice(0, 10);
+    const done = MS.filter(m => m.status === 'terminee');
+    const caSum = arr => arr.reduce((s, m) => s + (m.prixTotal || 0), 0);
+    const today = MS.filter(m => (m.createdAt || '').slice(0, 10) === todayK);
+    const doneToday = done.filter(m => (m.finishedAt || '').slice(0, 10) === todayK);
+    const active = MS.filter(m => ['accepted', 'enroute', 'arrive', 'encours'].includes(m.status)).length;
+    const ca7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000), k = d.toISOString().slice(0, 10);
+      const dd = done.filter(m => (m.finishedAt || '').slice(0, 10) === k);
+      ca7.push({ day: d.toLocaleDateString('fr-FR', { weekday: 'short' }), ca: caSum(dd), n: dd.length });
+    }
+    const notes = done.filter(m => m.note).map(m => m.note);
+    const OV = {
+      agentsEnLigne: onlineAgents().length, agentsTotal: db.agents.length,
+      clientsTotal: db.clients.length,
+      candsPending: db.agents.filter(a => a.status === 'pending').length,
+      missionsToday: today.length, missionsActive: active,
+      missionsTotal: MS.length, missionsDone: done.length,
+      caToday: caSum(doneToday), caTotal: caSum(done),
+      commToday: Math.round(caSum(doneToday) * feePct()),
+      commTotal: Math.round(caSum(done) * feePct()),
+      gainAgentsTotal: caSum(done) - Math.round(caSum(done) * feePct()),
+      noteMoyenne: notes.length ? Math.round(notes.reduce((s, n) => s + n, 0) / notes.length * 10) / 10 : 5,
+      ca7
+    };
+    /* 🛡️ Matrice des rôles : le gestionnaire ne reçoit JAMAIS les chiffres financiers (cahier §A.1) */
+    if ((hqIdentity(req) || {}).role !== 'pdg') {
+      OV.caToday = null; OV.caTotal = null; OV.commToday = null; OV.commTotal = null;
+      OV.gainAgentsTotal = null; OV.ca7 = [];
+    }
+    return sendJson(res, 200, OV);
+  }
+
+  if (p === '/api/admin/missions') {
+    return sendJson(res, 200, db.missions.slice(-60).reverse().map(m => ({
+      id: m.id, service: m.service, quartier: m.quartier, time: m.time, date: m.date,
+      pieces: m.pieces, prixTotal: m.prixTotal, comm: Math.round((m.prixTotal || 0) * feePct()),
+      status: m.status, client: m.client && m.client.nom,
+      agent: m.agentId ? ((db.agents.find(a => a.id === m.agentId) || {}).nom || '—') : null,
+      paiement: m.paiement, gps: !!(m.lat && m.lng),
+      at: m.createdAt
+    })));
+  }
+
+  if (p === '/api/admin/agents') {
+    return sendJson(res, 200, db.agents.map(a => ({ id: a.id, nom: a.nom, quartier: a.quartier, ville: a.ville || '', mail: a.mail || '', online: !!a, status: a.status || 'approved', blocked: !!a.blocked, ...agentStats(a) })));
+  }
+
+  if (p === '/api/admin/inscrits') {
+    const mine = x => ownsRecord(req, x);
+    const clients = db.clients.filter(mine).map(c => {
+      const ms = db.missions.filter(m => m.clientId === c.id);
+      const depense = ms.filter(m => m.status === 'terminee').reduce((s, m) => s + (m.prixTotal || 0), 0);
+      const paiements = ms.filter(m => m.status === 'terminee').map(m => ({ id: m.id, montant: m.prixTotal, at: m.finishedAt || m.createdAt, service: m.service }));
+      return { id: c.id, nom: c.nom, tel: c.tel, quartier: c.quartier || '', ville: c.ville || '', createdAt: c.createdAt, photo: !!c.photo, missions: ms.length, depense, blocked: !!c.blocked, createdBy: c.createdBy || '', createdById: c.createdById || '', online: !!c.online, paiements };
+    });
+    const agents = db.agents.filter(mine).map(a => ({ id: a.id, nom: a.nom, tel: a.tel || a.tel1 || '', quartier: a.quartier || '', ville: a.ville || '', villeService: a.villeService || a.ville || '', mail: a.mail || '', status: a.status || 'approved', online: !!a.online, niveau: a.niveau || '', services: a.services || [], kind: a.kind || 'pro', createdAt: a.createdAt, photo: !!a.photo, blocked: !!a.blocked, createdBy: a.createdBy || '', createdById: a.createdById || '', ...agentStats(a) }));
+    return sendJson(res, 200, { clients: clients.slice().reverse(), agents: agents.slice().reverse(), canModerate: isPdg(req) });
+  }
+
+  /* --- Admin : dossiers de candidature --- */
+  if (p === '/api/config') return sendJson(res, 200, {
+    commission: (db.config && db.config.commission) || 25,
+    reachKm: (db.config && typeof db.config.reachKm === 'number') ? db.config.reachKm : 15,
+    payDest: (db.config && db.config.hide) ? { hide: true } : ((db.config && db.config.payDest) || {}),
+    hidePay: !!(db.config && db.config.payDest && db.config.payDest.hide)
+  });
+  if (p === '/api/annonce') return sendJson(res, 200, { ok: true, version: APP_VERSION, annonce: db.annonce || null });
+
+  /* --- 🤝 Liaison d'un compte pro créé à la main par l'équipe (code à usage unique) --- */
+  if (p === '/api/agents/claim' && req.method === 'POST') {
+    const ip = req.socket.remoteAddress || '?';
+    const rc = loginTries.get(ip + '|claim') || { n: 0, t: 0 };
+    if (rc.n >= 6 && Date.now() - rc.t < 600000) return sendJson(res, 429, { error: 'Trop d’essais — patientez 10 minutes' });
+    const b = await readBody(req);
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    const pin = String(b.pin || '').trim();
+    const ag = db.agents.find(a => String(a.tel1 || '').replace(/\D/g, '') === tel && a.claimPin && a.claimPin === pin && (a.status || 'approved') === 'approved');
+    if (!ag) {
+      loginTries.set(ip + '|claim', { n: rc.n + 1, t: rc.t || Date.now() });
+      return sendJson(res, 401, { error: 'Numéro ou code incorrect — vérifiez avec le gestionnaire' });
+    }
+    loginTries.delete(ip + '|claim');
+    delete ag.claimPin; // 🔒 usage unique
+    ag.claimedAt = nowISO();
+    (ag.hist = ag.hist || []).push({ at: Date.now(), by: ag.nom, ev: '📱 Compte lié au téléphone du professionnel' });
+    saveDb();
+    auditLog('pro_lie', { pro: ag.nom, tel });
+    return sendJson(res, 200, { ok: true, agentId: ag.id, nom: ag.nom });
+  }
+
+  /* --- 💬 Support interne : utilisateur (client OU pro) ↔ équipe KLEAN --- */
+  function supportIdent(req, b) {
+    const tk = req.headers['x-client-token'] || '';
+    if (tk) { const cl = db.clients.find(c => !c.blocked && clientToken(c.passHash) === tk); if (cl) return { role: 'client', id: cl.id, nom: cl.nom }; }
+    const aid = (b && b.agentId) || url.searchParams.get('agentId') || '';
+    if (aid) { const ag = db.agents.find(a => a.id === aid && (a.status || 'approved') === 'approved'); if (ag) return { role: 'pro', id: ag.id, nom: ag.nom }; }
+    return null;
+  }
+  if (p === '/api/support/send' && req.method === 'POST') {
+    const b = await readBody(req);
+    const who = supportIdent(req, b);
+    if (!who) return sendJson(res, 401, { error: 'Identifiez-vous d’abord (inscription ou connexion)' });
+    const text = String(b.text || '').trim().slice(0, 400);
+    if (text.length < 2) return sendJson(res, 400, { error: 'Message vide' });
+    const rk = who.role + ':' + who.id, t = Date.now();
+    // limite douce : ~6 messages / minute / utilisateur
+    const rec = supRateMap.get(rk);
+    if (rec && t - rec.at < 60000 && rec.n >= 6) return sendJson(res, 429, { error: 'Trop de messages — patientez une minute' });
+    supRateMap.set(rk, rec && t - rec.at < 60000 ? { n: rec.n + 1, at: rec.at } : { n: 1, at: t });
+    db.supportMsgs.push({ id: uid('SR'), role: who.role, uid: who.id, nom: who.nom, from: 'user', text, at: nowISO(), readHQ: false, readUser: true });
+    if (db.supportMsgs.length > 4000) db.supportMsgs = db.supportMsgs.slice(-2000);
+    saveDb();
+    broadcast(adminSockets(), { type: 'support_new', role: who.role, uid: who.id });
+    emitAdmin('support', '💬 Message support (' + who.nom + ') : « ' + text.slice(0, 60) + (text.length > 60 ? '…' : '') + ' »');
+    auditLog('support_message', { role: who.role, de: who.nom });
+    return sendJson(res, 200, { ok: true });
+  }
+  if (p === '/api/support/mine' && req.method === 'GET') {
+    const who = supportIdent(req, null);
+    if (!who) return sendJson(res, 401, { error: 'Identifiez-vous d’abord' });
+    const peek = url.searchParams.get('peek') === '1';
+    const convo = db.supportMsgs.filter(s => s.role === who.role && s.uid === who.id);
+    const unread = convo.filter(s => s.from === 'hq' && !s.readUser).length;
+    if (!peek && unread) { convo.forEach(s => { if (s.from === 'hq') s.readUser = true; }); saveDb(); }
+    return sendJson(res, 200, { ok: true, unread, messages: convo.slice(-60) });
+  }
+
+  if (p === '/api/admin/config' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b2 = await readBody(req);
+    const cc = parseFloat(b2.commission);
+    if (isNaN(cc) || cc < 0 || cc > 50) return sendJson(res, 400, { error: 'Taux de commission entre 0 et 50 %' });
+    db.config = db.config || {}; db.config.commission = Math.round(cc * 10) / 10; db.config.updatedAt = nowISO();
+    if (b2.reachKm !== undefined && !isNaN(parseFloat(b2.reachKm))) {
+      db.config.reachKm = Math.max(1, Math.min(80, Math.round(parseFloat(b2.reachKm))));
+      auditLog('rayon_regle', { nouveau: db.config.reachKm, par: act(req) });
+    }
+    auditLog('commission_modifiee', { nouveau: db.config.commission, par: act(req) });
+    saveDb();
+    emitAdmin('admin', `⚙️ Commission plateforme réglée à ${db.config.commission} %`);
+    return sendJson(res, 200, { ok: true, commission: db.config.commission });
+  }
+
+  /* --- 🔒 Pouvoirs du PDG : bloquer / débloquer / supprimer un professionnel --- */
+  const kickOut = id => { for (const s of [...sockets].filter(x => x.meta && x.meta.agentId === id)) { try { wsSend(s, { type: 'agent_denied', reason: 'blocked' }); } catch (e) {} try { s.end(); } catch (e) {} } };
+  const aBlock = p.match(/^\/api\/admin\/agents\/(.+)\/block$/);
+  if (aBlock && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const ag = db.agents.find(a => a.id === aBlock[1]); if (!ag) return sendJson(res, 404, {});
+    ag.blocked = true; ag.blockedAt = nowISO(); ag.online = false; saveDb(); kickOut(ag.id);
+    (ag.history = ag.history || []).push({ at: nowISO(), by: act(req), action: 'bloque' });
+    auditLog('pro_bloque', { pro: ag.nom, id: ag.id });
+    emitAdmin('admin', `🔒 ${ag.nom} bloqué — hors ligne, ne reçoit plus aucune demande`);
+    console.log(`🔒 Professionnel bloqué : ${ag.nom}`);
+    return sendJson(res, 200, { ok: true });
+  }
+  const aUnblock = p.match(/^\/api\/admin\/agents\/(.+)\/unblock$/);
+  if (aUnblock && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const ag = db.agents.find(a => a.id === aUnblock[1]); if (!ag) return sendJson(res, 404, {});
+    ag.blocked = false; delete ag.blockedAt; saveDb();
+    (ag.history = ag.history || []).push({ at: nowISO(), by: act(req), action: 'debloque' });
+    auditLog('pro_debloque', { pro: ag.nom, id: ag.id });
+    emitAdmin('admin', `✅ ${ag.nom} débloqué — à nouveau éligible`);
+    return sendJson(res, 200, { ok: true });
+  }
+  const aDel = p.match(/^\/api\/admin\/agents\/(.+)$/);
+  if (aDel && req.method === 'DELETE') {
+    if (!pdgOnly(req, res)) return;
+    const ag = db.agents.find(a => a.id === aDel[1]); if (!ag) return sendJson(res, 404, {});
+    const busy = db.missions.some(m => m.agentId === ag.id && ['accepted', 'enroute', 'arrive', 'encours'].includes(m.status));
+    if (busy) return sendJson(res, 409, { error: 'Mission en cours : bloquez ce professionnel puis supprimez-le une fois la mission terminée' });
+    kickOut(ag.id);
+    trashPush('agent', ag);
+    db.agents = db.agents.filter(a => a.id !== ag.id); saveDb();
+    auditLog('pro_supprime', { pro: ag.nom, id: aDel[1] });
+    emitAdmin('admin', `🗑️ ${ag.nom} supprimé définitivement`);
+    console.log(`🗑️ Professionnel supprimé : ${ag.nom}`);
+    return sendJson(res, 200, { ok: true });
+  }
+  /* --- 🔒 Mêmes pouvoirs sur un client --- */
+  const cBlock = p.match(/^\/api\/admin\/clients\/(.+)\/block$/);
+  if (cBlock && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const cl = db.clients.find(c => c.id === cBlock[1]); if (!cl) return sendJson(res, 404, {});
+    cl.blocked = true; cl.blockedAt = nowISO(); saveDb();
+    auditLog('client_bloque', { client: cl.nom, id: cl.id });
+    emitAdmin('admin', `🔒 Client ${cl.nom} bloqué — ne peut plus passer de demandes`);
+    return sendJson(res, 200, { ok: true });
+  }
+  const cUnblock = p.match(/^\/api\/admin\/clients\/(.+)\/unblock$/);
+  if (cUnblock && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const cl = db.clients.find(c => c.id === cUnblock[1]); if (!cl) return sendJson(res, 404, {});
+    cl.blocked = false; delete cl.blockedAt; saveDb();
+    auditLog('client_debloque', { client: cl.nom, id: cl.id });
+    emitAdmin('admin', `✅ Client ${cl.nom} débloqué`);
+    return sendJson(res, 200, { ok: true });
+  }
+  const cDel = p.match(/^\/api\/admin\/clients\/(.+)$/);
+  if (cDel && req.method === 'DELETE') {
+    const cl = db.clients.find(c => c.id === cDel[1]); if (!cl) return sendJson(res, 404, {});
+    const busy = db.missions.some(m => m.clientId === cl.id && ['accepted', 'enroute', 'arrive', 'encours'].includes(m.status));
+    if (busy) return sendJson(res, 409, { error: 'Mission en cours pour ce client : bloquez-le d’abord, supprimez-le après la fin' });
+    db.missions.forEach(m => { if (m.clientId === cl.id && m.status === 'pending') { m.status = 'annulee'; m.cancelReason = 'compte supprime'; } });
+    trashPush('client', cl);
+    db.clients = db.clients.filter(c => c.id !== cl.id); saveDb();
+    auditLog('client_supprime', { client: cl.nom, id: cDel[1] });
+    emitAdmin('admin', `🗑️ Client ${cl.nom} supprimé définitivement`);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/admin/annonce' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const msg = String(b.message || '').trim().slice(0, 240);
+    if (msg.length < 4) return sendJson(res, 400, { error: 'Message trop court' });
+    const type = ['maj', 'info', 'alerte'].includes(b.type) ? b.type : 'info';
+    db.annonce = { id: uid('AN'), message: msg, type, at: nowISO(), par: act(req) };
+    saveDb();
+    auditLog('annonce_publiee', { type, par: act(req) });
+    emitAdmin('annonce', '📣 Affiche publiée pour tous les utilisateurs');
+    return sendJson(res, 200, { ok: true });
+  }
+  if (p === '/api/admin/annonce' && req.method === 'DELETE') {
+    if (!pdgOnly(req, res)) return;
+    db.annonce = null; saveDb();
+    auditLog('annonce_retiree', { par: act(req) });
+    emitAdmin('annonce', '📣 Affiche retirée');
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/admin/whoami' && req.method === 'GET') {
+    const id = hqIdentity(req);
+    return sendJson(res, 200, { role: id.role, nom: id.nom });
+  }
+
+  /* --- 🔁 Réattribution manuelle d'urgence d'une mission (gestionnaire autorisé) --- */
+  /* --- 🏗️ Création guidée de comptes par l'équipe (client ou professionnel) --- */
+  if (p === '/api/admin/clients/create' && req.method === 'POST') {
+    const b = await readBody(req);
+    const nom = String(b.nom || '').trim();
+    if (nom.length < 2) return sendJson(res, 400, { error: 'Nom du client trop court' });
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    if (tel.length < 8) return sendJson(res, 400, { error: 'Numéro de téléphone invalide' });
+    if (db.clients.find(cl => cl.tel === tel)) return sendJson(res, 409, { error: 'Ce numéro a déjà un compte client' });
+    let pw = String(b.password || ''), gen = false;
+    if (!pw) { pw = 'Klean-' + Math.floor(1000 + Math.random() * 9000) + '!'; gen = true; }
+    const perr = validPassword(pw);
+    if (perr) return sendJson(res, 400, { error: 'Mot de passe faible : ' + perr });
+    const salt = crypto.randomBytes(12).toString('hex');
+    const cl = { id: uid('CL'), nom, tel, quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), salt, passHash: hashPassword(salt, pw), createdAt: nowISO(), createdBy: act(req), createdById: actorId(req) };
+    db.clients.push(cl); saveDb();
+    auditLog('client_cree_hq', { nom, tel, par: act(req) });
+    emitAdmin('client', '👤 Compte client créé par ' + act(req) + ' : ' + nom + ' (' + tel + ')');
+    return sendJson(res, 201, { ok: true, id: cl.id, nom, tel, password: pw, passwordGenere: gen });
+  }
+  if (p === '/api/admin/agents/create' && req.method === 'POST') {
+    const b = await readBody(req);
+    const nom = String(b.nom || '').trim(), prenom = String(b.prenom || '').trim();
+    if (nom.length < 2 || prenom.length < 2) return sendJson(res, 400, { error: 'Nom et prénom requis' });
+    const tel1 = String(b.tel || '').replace(/\D/g, '');
+    if (tel1.length < 8) return sendJson(res, 400, { error: 'Numéro de téléphone invalide' });
+    if (db.agents.find(a => String(a.tel1 || '').replace(/\D/g, '') === tel1)) return sendJson(res, 409, { error: 'Ce numéro est déjà inscrit chez les professionnels' });
+    const pin = String(Math.floor(100000 + Math.random() * 900000));
+    const services = Array.isArray(b.services) && b.services.length ? b.services : [b.service || 'maison'];
+    const na = { id: uid('AG'), nom: (prenom + ' ' + nom).trim(), prenom, tel1, quartier: String(b.quartier || '').trim(), ville: String(b.ville || '').trim().slice(0, 60), mail: String(b.mail || '').trim().slice(0, 80), adresse: String(b.adresse || '').trim(),
+      naissance: '', experience: b.experience || 0, pieceType: '', pieceNum: '', tel2: '', urgenceNom: '', urgenceTel: '', ref1Nom: '', ref1Tel: '',
+      services, niveau: '', photo: '', pushSubs: [], hist: [{ at: Date.now(), by: act(req), ev: '🏗️ Compte créé à la main par l’équipe — vérification immédiate' }],
+      status: 'approved', approvedAt: nowISO(), createdAt: nowISO(), createdBy: act(req), claimPin: pin, online: false, pos: null };
+    db.agents.push(na); saveDb();
+    auditLog('pro_cree_hq', { pro: na.nom, tel: tel1, par: act(req) });
+    emitAdmin('agent', '🏗️ ' + act(req) + ' a créé le professionnel ' + na.nom + ' — code de liaison remis en main');
+    return sendJson(res, 201, { ok: true, id: na.id, nom: na.nom, tel: tel1, pin });
+  }
+
+  const mRea = p.match(/^\/api\/admin\/missions\/(.+)\/reassign$/);
+  if (mRea && req.method === 'POST') {
+    const b = await readBody(req);
+    const m = db.missions.find(x => x.id === mRea[1]);
+    if (!m) return sendJson(res, 404, { error: 'mission introuvable' });
+    if (!['accepted', 'enroute'].includes(m.status)) return sendJson(res, 409, { error: 'Seules les missions « acceptée » ou « en route » peuvent être réattribuées d’urgence' });
+    const oldAg = db.agents.find(a => a.id === m.agentId);
+    const oldId = m.agentId;
+    m.exclAg = [...new Set([...(m.exclAg || []), oldId].filter(Boolean))];
+    m.hist = m.hist || [];
+    m.hist.push({ at: Date.now(), by: act(req), ev: '⤴ Réattribution d’urgence (ancien : ' + (oldAg ? oldAg.nom : oldId) + ') — ' + String(b.reason || 'motif non précisé').slice(0, 120) });
+    m.agentId = null; m.status = 'pending'; delete m.acceptedAt;
+    saveDb();
+    // nouvelle diffusion (sauf à l'ancien)
+    const t2 = missionTargets(m).filter(s => !(m.exclAg || []).includes(s.meta && s.meta.agentId));
+    broadcast(t2, { type: 'mission_request', mission: publicMissionForAgent(m) });
+    pushNewMissionToAgents(m, (SVC_NAMES[m.service] || m.service) || '').catch(() => {});
+    // informer l'ancien + les écrans abonnés
+    const oldSock = [...sockets].find(s => s.meta && s.meta.agentId === oldId);
+    if (oldSock) wsSend(oldSock, { type: 'mission_reassigned', missionId: m.id, reason: (b.reason || '').slice(0, 120) });
+    emitToMission(m, { type: 'mission_update', status: 'pending', missionId: m.id, agent: null });
+    auditLog('mission_reattribuee', { mission: m.id, ancien: oldAg ? oldAg.nom : '?', par: act(req) });
+    emitAdmin('mission', '⤴ Mission ' + m.id + ' retirée à ' + (oldAg ? oldAg.nom : '?') + ' par ' + act(req) + ' — réattribuée');
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/admin/support' && req.method === 'GET') {
+    const open = url.searchParams.get('open') || '';
+    let messages = null;
+    if (open) {
+      const [r0, u0] = open.split('|');
+      messages = db.supportMsgs.filter(s => s.role === r0 && s.uid === u0).slice(-80);
+      if (messages.some(s => s.from === 'user' && !s.readHQ)) { messages.forEach(s => { if (s.from === 'user') s.readHQ = true; }); saveDb(); }
+    }
+    const convs = {};
+    for (const s of db.supportMsgs) {
+      const k = s.role + ':' + s.uid;
+      if (!convs[k]) convs[k] = { role: s.role, uid: s.uid, nom: s.nom, last: null, unreadHQ: 0 };
+      convs[k].last = { text: s.text, at: s.at, from: s.from };
+      if (s.from === 'user' && !s.readHQ) convs[k].unreadHQ++;
+    }
+    const list = Object.values(convs).sort((a, b) => String((b.last || {}).at).localeCompare(String((a.last || {}).at)));
+    return sendJson(res, 200, { ok: true, conversations: list, messages });
+  }
+  if (p === '/api/admin/support' && req.method === 'POST') {
+    const b = await readBody(req);
+    const text = String(b.text || '').trim().slice(0, 400);
+    if (text.length < 2) return sendJson(res, 400, { error: 'Message vide' });
+    if (!['client', 'pro'].includes(b.role) || !b.uid) return sendJson(res, 400, { error: 'destinataire inconnu' });
+    const cible = b.role === 'client' ? db.clients.find(c => c.id === b.uid) : db.agents.find(a => a.id === b.uid);
+    if (!cible) return sendJson(res, 404, { error: 'introuvable' });
+    if (!ownsRecord(req, cible)) return sendJson(res, 403, { error: 'Ce compte n’est pas le vôtre' });
+    const muteKey = b.role + ':' + b.uid;
+    if ((db.mutedChats || []).some(m => m.key === muteKey)) return sendJson(res, 403, { error: 'Conversation interrompue par le PDG' });
+    const sender = act(req);
+    db.supportMsgs.push({ id: uid('SR'), role: b.role, uid: b.uid, nom: cible.nom, from: 'hq', par: sender, text, at: nowISO(), readHQ: true, readUser: false });
+    saveDb();
+    if (b.role === 'pro') {
+      const sock = [...sockets].find(s => s.meta && s.meta.agentId === b.uid);
+      if (sock) wsSend(sock, { type: 'support_msg', text, par: sender });
+    }
+    auditLog('support_reponse', { par: sender, a: cible.nom, role: b.role });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* --- 👑 Gestionnaires : créés par le PDG depuis son tableau de bord --- */
+  if (p === '/api/admin/admins' && req.method === 'GET') {
+    if (!pdgOnly(req, res)) return;
+    return sendJson(res, 200, (db.admins || []).map(a => ({ id: a.id, nom: a.nom, ident: a.ident, blocked: !!a.blocked, createdAt: a.createdAt, lastLogin: a.lastLogin || null })));
+  }
+  if (p === '/api/admin/admins' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const nom = String(b.nom || '').trim();
+    if (nom.length < 3) return sendJson(res, 400, { error: 'Nom du gestionnaire trop court' });
+    const ident = normIdent(b.ident || nom.split(' ')[0]);
+    if (ident.length < 3) return sendJson(res, 400, { error: 'Identifiant trop court (ex : awa.ckn)' });
+    if (ident === 'pdg') return sendJson(res, 400, { error: 'Cet identifiant est réservé au PDG' });
+    db.admins = db.admins || [];
+    if (db.admins.some(a => normIdent(a.ident) === ident || normIdent(a.nom) === nom)) return sendJson(res, 409, { error: 'Nom ou identifiant déjà utilisé' });
+    const bad = validPassword(b.password || '');
+    if (bad) return sendJson(res, 400, { error: bad });
+    const salt = crypto.randomBytes(16).toString('hex');
+    const na = { id: uid('AD'), nom, ident, salt, passHash: hashPassword(salt, b.password), blocked: false, createdAt: nowISO(), lastLogin: null, by: act(req) };
+    db.admins.push(na); saveDb();
+    auditLog('admin_cree', { gestionnaire: nom, ident, par: act(req) });
+    emitAdmin('admin', `👑 Gestionnaire créé : ${nom} (${ident})`);
+    return sendJson(res, 201, { ok: true, id: na.id });
+  }
+  const adAct = p.match(/^\/api\/admin\/admins\/(.+)\/(block|unblock|password)$/);
+  if (adAct && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const ad = (db.admins || []).find(a => a.id === adAct[1]);
+    if (!ad) return sendJson(res, 404, {});
+    if (adAct[2] === 'block') {
+      ad.blocked = true; ad.blockedAt = nowISO();
+      auditLog('admin_bloque', { gestionnaire: ad.nom, par: act(req) });
+      emitAdmin('admin', `🔒 Gestionnaire ${ad.nom} bloqué — éjecté immédiatement`);
+    } else if (adAct[2] === 'unblock') {
+      ad.blocked = false; delete ad.blockedAt;
+      auditLog('admin_debloque', { gestionnaire: ad.nom, par: act(req) });
+      emitAdmin('admin', `✅ Gestionnaire ${ad.nom} débloqué`);
+    } else {
+      const b = await readBody(req);
+      const bad = validPassword(b.password || '');
+      if (bad) return sendJson(res, 400, { error: bad });
+      ad.salt = crypto.randomBytes(16).toString('hex');
+      ad.passHash = hashPassword(ad.salt, b.password);
+      auditLog('admin_mdp_regenere', { gestionnaire: ad.nom, par: act(req) });
+      emitAdmin('admin', `🔑 Nouveau mot de passe fixé pour ${ad.nom} (ancien jeton révoqué)`);
+    }
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+  const adDel = p.match(/^\/api\/admin\/admins\/(.+)$/);
+  if (adDel && req.method === 'DELETE') {
+    if (!pdgOnly(req, res)) return;
+    const ad = (db.admins || []).find(a => a.id === adDel[1]);
+    if (!ad) return sendJson(res, 404, {});
+    db.admins = db.admins.filter(a => a.id !== ad.id);
+    auditLog('admin_supprime', { gestionnaire: ad.nom, par: act(req) });
+    emitAdmin('admin', `🗑️ Gestionnaire ${ad.nom} supprimé — accès révoqué`);
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/admin/audit') { if (!pdgOnly(req, res)) return; return sendJson(res, 200, (db.audit || []).slice(-200).reverse()); }
+
+  if (p === '/api/admin/candidatures') {
+    return sendJson(res, 200, db.agents
+      .filter(a => a.status)
+      .slice().reverse()
+      .map(a => {
+        const { piecePhoto, ...rest } = a;   // liste sans la photo (chargée au détail)
+        return { ...rest, hasPhoto: !!piecePhoto };
+      }));
+  }
+
+  const cOne = p.match(/^\/api\/admin\/candidatures\/(.+)$/);
+  if (cOne && req.method === 'GET') {
+    const ag = db.agents.find(a => a.id === cOne[1]);
+    if (!ag) return sendJson(res, 404, {});
+    return sendJson(res, 200, ag);
+  }
+
+  const aApprove = p.match(/^\/api\/admin\/agents\/(.+)\/approve$/);
+  if (aApprove && req.method === 'POST') {
+    const ag = db.agents.find(a => a.id === aApprove[1]);
+    if (!ag) return sendJson(res, 404, {});
+    ag.status = 'approved'; ag.approvedAt = nowISO(); saveDb();
+    (ag.history = ag.history || []).push({ at: nowISO(), by: act(req), action: 'valide', from: 'pending', to: 'approved' });
+    auditLog('agent_valide', { agent: ag.nom, id: ag.id, par: act(req) });
+    emitAdmin('cand', `✅ ${ag.nom} validé — peut maintenant recevoir des missions`);
+    const s = [...sockets].find(x => x.meta && x.meta.agentId === ag.id);
+    if (s) wsSend(s, { type: 'agent_approved', nom: ag.nom });
+    console.log(`✅ Agent validé : ${ag.nom}`);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const aReject = p.match(/^\/api\/admin\/agents\/(.+)\/reject$/);
+  if (aReject && req.method === 'POST') {
+    const { reason } = await readBody(req);
+    const ag = db.agents.find(a => a.id === aReject[1]);
+    if (!ag) return sendJson(res, 404, {});
+    ag.status = 'rejected'; ag.rejectReason = reason || 'Dossier incomplet'; ag.online = false; saveDb();
+    (ag.history = ag.history || []).push({ at: nowISO(), by: act(req), action: 'rejete', motif: ag.rejectReason });
+    auditLog('agent_rejete', { agent: ag.nom, id: ag.id, motif: ag.rejectReason });
+    emitAdmin('cand', `❌ Candidature de ${ag.nom} rejetée (${ag.rejectReason})`);
+    const s = [...sockets].find(x => x.meta && x.meta.agentId === ag.id);
+    if (s) wsSend(s, { type: 'agent_rejected', reason: ag.rejectReason });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const aMore = p.match(/^\/api\/admin\/agents\/(.+)\/moreinfo$/);
+  if (aMore && req.method === 'POST') {
+    const { motif } = await readBody(req);
+    const ag = db.agents.find(a => a.id === aMore[1]);
+    if (!ag) return sendJson(res, 404, {});
+    ag.status = 'moreinfo'; ag.moreInfoReason = String(motif || 'Merci de compléter votre dossier').slice(0, 220); ag.online = false; saveDb();
+    (ag.history = ag.history || []).push({ at: nowISO(), by: act(req), action: 'infos_demandees', motif: ag.moreInfoReason });
+    auditLog('agent_infos_demandees', { agent: ag.nom, id: ag.id, motif: ag.moreInfoReason });
+    emitAdmin('cand', `📝 ${ag.nom} : informations supplémentaires demandées (${ag.moreInfoReason})`);
+    const s = [...sockets].find(x => x.meta && x.meta.agentId === ag.id);
+    if (s) wsSend(s, { type: 'agent_moreinfo', reason: ag.moreInfoReason });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* ─── Requête gestionnaire → PDG (bloquer/supprimer un compte) ─── */
+  if (p === '/api/admin/account-request' && req.method === 'POST') {
+    const b = await readBody(req);
+    if (!['block', 'delete'].includes(b.kind) || !['client', 'pro'].includes(b.role) || !b.id)
+      return sendJson(res, 400, { error: 'Demande incomplète' });
+    const rec = b.role === 'client' ? db.clients.find(c => c.id === b.id) : db.agents.find(a => a.id === b.id);
+    if (!rec) return sendJson(res, 404, { error: 'Compte introuvable' });
+    if (!ownsRecord(req, rec) && !isPdg(req)) return sendJson(res, 403, { error: 'Pas votre compte' });
+    db.accountRequests.push({ id: uid('RQ'), kind: b.kind, role: b.role, targetId: rec.id, nom: rec.nom, motif: String(b.motif || '').slice(0, 240), by: act(req), byId: actorId(req), at: nowISO(), status: 'pending' });
+    db.hqChat.push({ id: uid('HC'), from: 'gest', gestId: actorId(req), gestNom: act(req), text: '📋 Demande ' + (b.kind === 'block' ? 'blocage' : 'suppression') + ' de ' + rec.nom + (b.motif ? ' — ' + b.motif : ''), at: nowISO(), readPdg: false });
+    saveDb();
+    emitAdmin('admin', '🟠 Demande ' + act(req) + ' : ' + rec.nom);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (p === '/api/admin/account-request' && req.method === 'GET') {
+    if (!pdgOnly(req, res)) return;
+    return sendJson(res, 200, (db.accountRequests || []).slice().reverse());
+  }
+  if (p === '/api/admin/account-request/decide' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const rq = (db.accountRequests || []).find(x => x.id === b.id);
+    if (!rq) return sendJson(res, 404, {});
+    rq.status = b.accept ? 'acceptee' : 'refusee'; rq.decidedAt = nowISO();
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* ─── Chat PDG ↔ gestionnaires ─── */
+  if (p === '/api/admin/hq-chat' && req.method === 'GET') {
+    const id = hqIdentity(req);
+    let msgs = db.hqChat || [];
+    if (id.role !== 'pdg') msgs = msgs.filter(m => m.gestId === id.id || m.toId === id.id || (m.from === 'pdg' && (!m.toId || m.toId === id.id)));
+    if (id.role === 'pdg') msgs.forEach(m => { m.readPdg = true; });
+    saveDb();
+    const unread = (db.hqChat || []).filter(m => m.from === 'gest' && !m.readPdg).length;
+    return sendJson(res, 200, { messages: msgs.slice(-200), unread });
+  }
+  if (p === '/api/admin/hq-chat' && req.method === 'POST') {
+    const b = await readBody(req);
+    const text = String(b.text || '').trim().slice(0, 500);
+    if (text.length < 1) return sendJson(res, 400, { error: 'Message vide' });
+    const id = hqIdentity(req);
+    db.hqChat.push({ id: uid('HC'), from: id.role === 'pdg' ? 'pdg' : 'gest', gestId: id.role === 'gest' ? id.id : (b.toId || null), toId: id.role === 'pdg' ? (b.toId || null) : 'pdg', gestNom: act(req), text, at: nowISO(), readPdg: id.role === 'pdg' });
+    saveDb();
+    emitAdmin('admin', (id.role === 'pdg' ? '👑 PDG' : '🟠 ' + act(req)) + ' : ' + text.slice(0, 40));
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* ─── Couper une conversation ─── */
+  if (p === '/api/admin/mute-chat' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const key = String(b.key || '');
+    if (!key) return sendJson(res, 400, {});
+    db.mutedChats = db.mutedChats || [];
+    if (b.off) db.mutedChats = db.mutedChats.filter(m => m.key !== key);
+    else if (!db.mutedChats.some(m => m.key === key)) db.mutedChats.push({ key, at: nowISO(), by: act(req) });
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* ─── Codes promo ─── */
+  if (p === '/api/admin/promos' && req.method === 'GET') {
+    if (!pdgOnly(req, res)) return;
+    return sendJson(res, 200, db.promos || []);
+  }
+  if (p === '/api/admin/promos' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const code = String(b.code || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (code.length < 3) return sendJson(res, 400, { error: 'Code trop court' });
+    if ((db.promos || []).some(x => x.code === code && x.active)) return sendJson(res, 409, { error: 'Code déjà actif' });
+    const days = Math.max(1, parseInt(b.days, 10) || 30);
+    const unique = !!b.unique;
+    const maxUses = unique ? 1 : Math.max(1, parseInt(b.maxUses, 10) || 10);
+    const rec = { id: uid('PR'), code, unique, maxUses, uses: 0, days, until: new Date(Date.now() + days * 86400000).toISOString(), partnerId: b.partnerId || null, active: true, at: nowISO(), par: act(req) };
+    db.promos.push(rec); saveDb();
+    return sendJson(res, 201, rec);
+  }
+  if (p === '/api/admin/promos/cancel' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const pr = (db.promos || []).find(x => x.id === b.id || x.code === String(b.code || '').toUpperCase());
+    if (!pr) return sendJson(res, 404, {});
+    pr.active = false; pr.cancelledAt = nowISO(); saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  /* ─── Partenaires ─── */
+  if (p === '/api/admin/partners' && req.method === 'GET') {
+    if (!pdgOnly(req, res)) return;
+    return sendJson(res, 200, db.partners || []);
+  }
+  if (p === '/api/admin/partners' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const nom = String(b.nom || '').trim();
+    if (nom.length < 2) return sendJson(res, 400, { error: 'Nom requis' });
+    const tel = String(b.tel || '').replace(/\D/g, '');
+    const rec = { id: uid('PT'), nom, tel, note: String(b.note || '').slice(0, 200), createdAt: nowISO(), codes: [] };
+    db.partners.push(rec); saveDb();
+    return sendJson(res, 201, rec);
+  }
+
+  /* ─── Numéros de paiement ─── */
+  if (p === '/api/admin/paydest' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    db.config.payDest = db.config.payDest || {};
+    if (b.wave) db.config.payDest.wave = Array.isArray(b.wave) ? b.wave : [String(b.wave)];
+    if (b.om) db.config.payDest.om = String(b.om);
+    if (b.moov) db.config.payDest.moov = String(b.moov);
+    if (b.hide != null) db.config.payDest.hide = !!b.hide;
+    saveDb();
+    return sendJson(res, 200, { ok: true, payDest: db.config.payDest });
+  }
+
+  /* ─── Corbeille / récupération ─── */
+  if (p === '/api/admin/trash' && req.method === 'GET') {
+    if (!pdgOnly(req, res)) return;
+    return sendJson(res, 200, db.trash || []);
+  }
+  if (p === '/api/admin/trash/restore' && req.method === 'POST') {
+    if (!pdgOnly(req, res)) return;
+    const b = await readBody(req);
+    const t = (db.trash || []).find(x => x.id === b.id);
+    if (!t) return sendJson(res, 404, {});
+    if (t.kind === 'client') db.clients.push(t.data);
+    else if (t.kind === 'agent') db.agents.push(t.data);
+    db.trash = db.trash.filter(x => x.id !== t.id);
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (p === '/api/stats') {
+    const villeN = String(url.searchParams.get('ville') || '').trim().toLowerCase();
+    if (!villeN) return sendJson(res, 200, {
+      agentsEnLigne: onlineAgents().length,
+      agentsTotal: db.agents.length,
+      missionsTotal: db.missions.length,
+      missionsTerminees: db.missions.filter(m => m.status === 'terminee').length
+    });
+    /* vérité terrain : comptage sur les vraies inscriptions de la ville — jamais de chiffre inventé
+       (un pro compte si sa ville d'inscription correspond, ou, sans ville, si son quartier appartient à la ville choisie) */
+    const qList = String(url.searchParams.get('quartiers') || '').split(',').map(q => q.trim().toLowerCase()).filter(Boolean);
+    const actifs = db.agents.filter(a =>
+      (a.status || 'approved') === 'approved' &&
+      (String(a.ville || '').trim().toLowerCase() === villeN ||
+       (!String(a.ville || '').trim() && a.quartier && qList.includes(String(a.quartier).trim().toLowerCase())))
+    );
+    return sendJson(res, 200, {
+      agentsEnLigne: actifs.filter(a => a.online).length,
+      agentsTotal: actifs.length,
+      missionsTotal: db.missions.length,
+      missionsTerminees: db.missions.filter(m => m.status === 'terminee').length
+    });
+  }
+
+  /* --- Fichiers statiques --- */
+  if (p === '/admin' || p === '/admin.html') {
+    // pas de redirection (certains proxies la cassent) : on sert directement le bon HTML
+    const target = path.join(__dirname, isAdminReq(req) ? 'admin.html' : 'admin-login.html');
+    fs.readFile(target, (err, data) => {
+      if (err) { res.writeHead(404); res.end('404'); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(data);
+    });
+    return;
+  }
+  let file = p === '/' ? '/index.html' : p;
+  file = path.normalize(file).replace(/^(\.\.[/\\])+/, '');
+  const fp = path.join(__dirname, file);
+  fs.readFile(fp, (err, data) => {
+    if (err) { res.writeHead(404); res.end('404'); return; }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(fp)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    res.end(data);
+  });
 });
+
+/* --- Upgrade WebSocket --- */
 server.on('upgrade', (req, sock) => {
-  const p = new URL(req.url, 'http://x').pathname;
-  if (p === '/ws') return upgradeWs(req, sock);
-  sock.destroy();
+  if (!req.url.startsWith('/ws')) { sock.end(); return; }
+  const key = req.headers['sec-websocket-key'];
+  const accept = crypto.createHash('sha1').update(key + WS_GUID).digest('base64');
+  sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
+  sock.meta = { missions: new Set(), hqAuthed: (req.headers.cookie || '').includes('klean_hq=' + adminToken()) };
+  sockets.add(sock);
+  sock.on('data', handleWsData(sock));
+  const bye = () => {
+    sockets.delete(sock);
+    if (sock.meta && sock.meta.agentId) {
+      const ag = db.agents.find(a => a.id === sock.meta.agentId);
+      if (ag && ![...sockets].some(s => s.meta && s.meta.agentId === ag.id)) { ag.online = false; saveDb(); }
+    }
+  };
+  sock.on('close', bye); sock.on('error', bye);
 });
-(async () => {
-  await initDb();
-  server.listen(PORT, () => {
+
+process.on('SIGTERM', () => { try { saveDbNow(); } catch (e) {} setTimeout(() => process.exit(0), 300); });
+
+initStorage().then(() => {
+  /* Sauvegarde avant l'arrêt du conteneur (redeploy Render envoie SIGTERM) */
+process.on('SIGTERM', () => { try { saveDbNow(); } catch (e) { } setTimeout(() => process.exit(0), 400); });
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log('');
-    console.log('🟠 ' + APP_NAME + ' — serveur en marche');
-    console.log('📡 HTTP        : http://localhost:' + PORT);
-    console.log('📡 WebSocket   : ws://localhost:' + PORT + '/ws');
-    console.log('🐘 Coffre      : ' + (pgClient ? 'Neon (permanent)' : 'fichier local db.json'));
-    console.log('🎓 Prix famille : ' + SUB_PRICE + ' F / ' + SUB_DAYS + ' jours (essai ' + TRIAL_DAYS + ' jours)');
+    console.log("  ✨ SERVEUR CENTRAL KLEAN — Côte d'Ivoire 🇨🇮");
+    console.log('  ────────────────────────────────────');
+    console.log('  🌐 Application : http://localhost:' + PORT);
+    console.log('  🎛️  Tableau HQ : http://localhost:' + PORT + '/admin');
+    console.log('  🔑 Mot de passe: ' + (db.admin ? 'déjà configuré ✓' : 'à créer à la 1re ouverture de /admin'));
+    console.log('  📡 WebSocket   : ws://localhost:' + PORT + '/ws');
+    console.log('  💰 Commission  : ' + (feePct() * 100) + '% par mission');
+    console.log('  ────────────────────────────────────');
     console.log('');
   });
-})();
+}).catch(e => { console.error('Démarrage impossible :', e); process.exit(1); });

@@ -1,14 +1,24 @@
 {
-  "name": "ÉCOLE LINK",
-  "short_name": "ÉCOLE LINK",
-  "description": "Le pont école ↔ parents : présences, convocations, nouvelles — tout arrive chez vous.",
-  "start_url": "/",
+  "name": "KLEAN — Services à domicile",
+  "short_name": "KLEAN",
+  "description": "Le Yango des services à domicile : ménage, plomberie, électricité, jardinage… en Côte d'Ivoire.",
+  "id": "/",
+  "start_url": "/?src=pwa",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFBF4",
-  "theme_color": "#D96C00",
+  "background_color": "#0a8a62",
+  "theme_color": "#0da678",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["lifestyle", "business", "utilities"],
   "icons": [
-    { "src": "/ecole-link-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/ecole-link-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/klean-icon-192.png",        "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/klean-icon-512.png",        "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/klean-icon-m512.png",       "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Réserver un service", "url": "/?src=pwa",     "icons": [{ "src": "/klean-icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mode agent",          "url": "/?mode=agent",  "icons": [{ "src": "/klean-icon-192.png", "sizes": "192x192" }] }
   ]
 }

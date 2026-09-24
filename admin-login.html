@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="/klean-icon-192.png" type="image/png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KLEAN HQ — Accès propriétaire</title>
+<style>
+  :root{--bg:#0b1512;--card:#122019;--line:#1e332a;--p:#15c98a;--pd:#0da678;--ink:#e8f2ed;--muted:#7f948a;--red:#ff6b6b;--amber:#ffb020}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+       background:radial-gradient(600px 400px at 50% -10%, rgba(21,201,138,.12), transparent 70%), var(--bg)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:32px 26px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,.4)}
+  .bubble{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--p),var(--pd));display:flex;align-items:center;justify-content:center;font-size:27px;margin:0 auto 14px}
+  h1{font-size:20px;margin-bottom:4px;text-align:center}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:20px;text-align:center}
+  .lbl{font-size:12px;font-weight:800;color:var(--muted);display:block;margin:12px 0 6px;text-transform:uppercase;letter-spacing:.3px}
+  .pw-wrap{position:relative}
+  .pw{width:100%;padding:14px 46px 14px 14px;border-radius:14px;border:2px solid var(--line);background:#0d1915;color:var(--ink);font-size:16px;outline:none;transition:.15s;font-family:inherit;letter-spacing:1px}
+  .pw:focus{border-color:var(--p)}
+  .pw.err{border-color:var(--red);animation:shake .35s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+  .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:17px;cursor:pointer;padding:8px;opacity:.7}
+  .eye:hover{opacity:1}
+  #wrap-confirm, #rules-box{display:none}
+  .setup #wrap-confirm{display:block}
+  .setup #rules-box{display:block}
+  .rules{background:#0d1915;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-top:12px}
+  .rules div{font-size:12.5px;color:var(--muted);font-weight:700;padding:3px 0;transition:.2s}
+  .rules div.ok{color:var(--p)}
+  button.go{width:100%;margin-top:18px;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--p),var(--pd));color:#04150e;font-weight:900;font-size:15px;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(21,201,138,.25)}
+  button.go:active{transform:scale(.98)}
+  .msg{min-height:18px;font-size:12.5px;font-weight:700;margin-top:12px;text-align:center;line-height:1.5}
+  .hint{margin-top:16px;font-size:11px;color:var(--muted);line-height:1.6;text-align:center}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="bubble">✨</div>
+  <h1 id="title">KLEAN HQ</h1>
+  <p class="sub" id="subtitle">Espace propriétaire · Bouaké 🇨🇮</p>
+
+  <label class="lbl" id="lbl-ident">Identifiant <span style="color:#9bb3aa;font-weight:700">(gestionnaires — vide = PDG)</span></label>
+  <div class="pw-wrap" id="wrap-ident">
+    <input class="pw" id="ident" type="text" maxlength="40" placeholder="ex : awa.ckn" autocomplete="off" style="font-size:15px">
+  </div>
+
+  <label class="lbl" id="lbl-pw">Mot de passe</label>
+  <div class="pw-wrap">
+    <input class="pw" id="pw" type="password" maxlength="64" placeholder="••••••••" autocomplete="off" autofocus>
+    <button class="eye" type="button" onclick="toggleEye('pw', this)">👁️</button>
+  </div>
+
+  <div class="pw-wrap" id="wrap-confirm">
+    <label class="lbl" style="margin-top:14px">Confirmez le mot de passe</label>
+    <input class="pw" id="pw2" type="password" maxlength="64" placeholder="••••••••" autocomplete="off">
+    <button class="eye" type="button" style="top:70%" onclick="toggleEye('pw2', this)">👁️</button>
+  </div>
+
+  <div class="rules" id="rules-box">
+    <div id="r-len">○ Au moins 8 caractères</div>
+    <div id="r-az">○ Contient une lettre</div>
+    <div id="r-09">○ Contient un chiffre</div>
+    <div id="r-sym">○ Contient un symbole (! @ # $ …)</div>
+    <div id="r-match">○ Les deux saisies correspondent</div>
+  </div>
+
+  <button class="go" id="btn" onclick="submit()">🔓 Accéder au tableau de bord</button>
+  <div class="msg" id="msg"></div>
+  <p class="hint" id="where"></p>
+</div>
+
+<script>
+let SERVER = true, SETUP = false;
+const pwEl = document.getElementById('pw'), pw2El = document.getElementById('pw2');
+const hp = s => { try{ return btoa(unescape(encodeURIComponent('klean::'+s))); }catch(e){ return btoa('klean::'+s); } };
+
+function toggleEye(id, btn){
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+  btn.textContent = el.type === 'password' ? '👁️' : '🙈';
+}
+function rule(id, ok, txt){ const d = document.getElementById(id); d.className = ok ? 'ok' : ''; d.textContent = (ok?'●':'○')+' '+txt; }
+function strengthMsg(){
+  const v = pwEl.value;
+  rule('r-len', v.length>=8, 'Au moins 8 caractères');
+  rule('r-az', /[A-Za-z]/.test(v), 'Contient une lettre');
+  rule('r-09', /[0-9]/.test(v), 'Contient un chiffre');
+  rule('r-sym', /[^A-Za-z0-9\s]/.test(v), 'Contient un symbole (! @ # $ …)');
+  rule('r-match', v.length>0 && v===pw2El.value, 'Les deux saisies correspondent');
+}
+function validRules(v){
+  if(v.length<8) return 'Au moins 8 caractères requis';
+  if(!/[A-Za-z]/.test(v)) return 'Ajoutez au moins une lettre';
+  if(!/[0-9]/.test(v)) return 'Ajoutez au moins un chiffre';
+  if(!/[^A-Za-z0-9\s]/.test(v)) return 'Ajoutez au moins un symbole (! @ # $ % …)';
+  return null;
+}
+pwEl.addEventListener('input', strengthMsg);
+function hideIdent(h){ const w=document.getElementById('wrap-ident'), l=document.getElementById('lbl-ident'); if(w) w.style.display=h?'none':''; if(l) l.style.display=h?'none':''; }
+pw2El.addEventListener('input', strengthMsg);
+pwEl.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+pw2El.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+
+function applyMode(){
+  const card = document.getElementById('card');
+  card.classList.toggle('setup', SETUP);
+  document.getElementById('title').textContent = SETUP ? 'Créez votre mot de passe' : 'KLEAN HQ';
+  document.getElementById('subtitle').textContent = SETUP
+    ? 'Une seule fois : créez votre clé propriétaire (suite à la vérification de sécurité du 21 sept.) — ensuite vous vous connecterez directement'
+    : 'Espace propriétaire · Côte d\'Ivoire 🇨🇮';
+  document.getElementById('lbl-pw').textContent = SETUP ? 'Choisissez votre mot de passe' : 'Mot de passe';
+  hideIdent(SETUP);
+  document.getElementById('btn').innerHTML = SETUP ? '🔐 Créer mon mot de passe' : '🔓 Accéder au tableau de bord';
+  const w = document.getElementById('where');
+  if(!SERVER) w.innerHTML = '🧪 Mode aperçu (sans serveur) — votre mot de passe est gardé dans cette fenêtre.<br>En production, il sera stocké de façon sécurisée sur le serveur.';
+  else w.innerHTML = '🔒 Serveur connecté : <b>'+location.host+'</b><br>Votre mot de passe est stocké hashé — personne ne peut le lire.'
+    + (SETUP ? '' : '<br><a href="#" onclick="forgotHelp();return false" style="color:var(--p);font-weight:700">🔑 Mot de passe oublié ?</a>');
+}
+
+function forgotHelp(){
+  alert("🔑 Récupération du mot de passe propriétaire\n\nPar sécurité, personne ne peut lire votre mot de passe (il est chiffré).\nLa récupération passe par le code à usage unique enregistré sur Render :\n\n1. Render → service klean → Environment → ADMIN_RESET_CODE\n2. Ouvrez : /api/admin/reset?code=VOTRE-CODE\n3. Revenez ici créer un nouveau mot de passe.\n\nSi vous n'avez pas défini ce code, contactez le support technique KLEAN.");
+}
+(async function init(){
+  try{
+    const r = await fetch('/api/admin/status', {cache:'no-store'});
+    if(!r.ok) throw 0;
+    const d = await r.json();
+    SETUP = !d.setup;
+  }catch(e){
+    SERVER = false;                       // aperçu Arena sans serveur → coffre local
+    SETUP = !localStorage.getItem('k2_hq_pass');
+  }
+  applyMode();
+})();
+
+async function submit(){
+  const msg = document.getElementById('msg');
+  msg.textContent = '⏳ Vérification…'; msg.style.color = 'var(--muted)';
+  pwEl.classList.remove('err'); pw2El.classList.remove('err');
+  const v = pwEl.value;
+
+  if(SETUP){
+    const err = validRules(v);
+    if(err){ pwEl.classList.add('err'); msg.style.color='var(--red)'; msg.textContent = '❌ '+err; return; }
+    if(v !== pw2El.value){ pw2El.classList.add('err'); msg.style.color='var(--red)'; msg.textContent='❌ Les deux saisies ne correspondent pas'; return; }
+    if(SERVER){
+      try{
+        const r = await fetch('/api/admin/setup', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
+        if(r.ok){ location.href='/admin'; return; }
+        const d = await r.json().catch(()=>({}));
+        msg.style.color='var(--red)'; msg.textContent = '❌ '+(d.error||'Erreur serveur');
+        if(r.status===409){ SETUP=false; applyMode(); }
+        return;
+      }catch(e){ msg.style.color='var(--red)'; msg.textContent='📡 Serveur injoignable'; return; }
+    } else {
+      localStorage.setItem('k2_hq_pass', hp(v));
+      localStorage.setItem('k2_hq_ok', '1');
+      msg.style.color='var(--p)'; msg.textContent='✓ Mot de passe créé !';
+      setTimeout(()=> location.href='admin.html', 400);
+      return;
+    }
+  }
+
+  // Connexion
+  if(SERVER){
+    try{
+      const r = await fetch('/api/admin/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v, ident:(document.getElementById('ident')||{}).value||''})});
+      if(r.ok){ location.href='/admin'; return; }
+      throw 0;
+    }catch(e){
+      pwEl.classList.add('err'); pwEl.value=''; pwEl.focus();
+      msg.style.color='var(--red)'; msg.textContent='❌ Mot de passe incorrect';
+      return;
+    }
+  } else {
+    if(hp(v) === localStorage.getItem('k2_hq_pass')){
+      localStorage.setItem('k2_hq_ok','1');
+      location.href='admin.html';
+    } else {
+      pwEl.classList.add('err'); pwEl.value=''; pwEl.focus();
+      msg.style.color='var(--red)'; msg.textContent='❌ Mot de passe incorrect';
+    }
+  }
+}
+</script>
+</body>
+</html>
